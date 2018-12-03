@@ -48,6 +48,7 @@
 
 #include <AccelStepper.h>//include the stepper motor library
 #include <MultiStepper.h>//include multiple stepper motor library
+#include <math.h>
 
 //define pin numbers
 const int rtStepPin = 46; //right stepper motor step pin
@@ -68,6 +69,20 @@ MultiStepper steppers;//create instance to control multiple steppers at the same
 #define stepperEnTrue false //variable for enabling stepper motor
 #define stepperEnFalse true //variable for disabling stepper motor
 
+// USER DEFINES
+#define LEFT 0
+#define RIGHT 1
+#define Pi 3.15149265358979
+
+#define REST_DELAY 500				// half second delay
+#define ONE_SECOND 1000 			// one second delay
+#define FULL_SPIN 360				// 360 degrees
+#define TICKS_FOR_FULL_WHEEL_SPIN 800
+#define INCHES_FOR_FULL_WHEEL_SPIN 10.5
+#define RIGHT_ANGLE 90				// 90 degrees
+#define FULL_CIRCLE_TICKS_COUNT 1900 // number of ticks to make a full spin
+
+
 void setup()
 {
   pinMode(rtStepPin, OUTPUT);//sets pin as output
@@ -86,18 +101,37 @@ void setup()
   steppers.addStepper(stepperLeft);//add left motor to MultiStepper
   digitalWrite(stepperEnable, stepperEnTrue);//turns on the stepper motor driver
   digitalWrite(enableLED, HIGH);//turn on enable LED
-  delay(5000); //always wait 5 seconds before the robot moves
+  delay(1000); //always wait 1 second before the robot moves
   //Serial.begin(9600); //start serial communication at 9600 baud rate for debugging
 }
 
 void loop()
 {
   //uncomment each function one at a time to see what the code does
-  //move1();//call move back and forth function
-  move2();//call move back and forth function with AccelStepper library functions
-  //move3();//call move back and forth function with MultiStepper library functions
+
+//800 ticks = 10.5 inches
+//800 ticks = 135 degrees
+//100 speed = 10.5in / 0.5s = 21in/s
+//100 speed = in / s = rad/s (pivoting)
+//100 speed = in / s = rad/s (spinning)
+//100 speed = in / s = rad/s (turning)
+  
+//  move1();//call move back and forth function
+//  move2();//call move back and forth function with AccelStepper library functions
+//  move3();//call move back and forth function with MultiStepper library functions
+//  forward(12);
+//  reverse(12);
+//  turn(LEFT);
+//  spin(LEFT,360);
+//  pivot(LEFT,360);
+//  goToAngle(-45);
+//  goToGoal(0,0);
+//  moveSquare(24);
+//  delay(100000);
+//  stop();
 }
 
+// -- PREWRITTEN FUNCTIONS OF MOVEMENT -- //
 /*
    The move1() function will move the robot forward one full rotation and backwared on
    full rotation.  Recall that that there 200 steps in one full rotation or 1.8 degrees per
@@ -210,68 +244,250 @@ void runToStop ( void ) {
   }
 }
 
+// -- BASIC MOVEMENT FUNCTIONS -- //
+/*
+	Description: 
+		Pivot keeps one wheel stationary and the other wheel spins until the desired angle.
+
+	Input: 
+		direction - It can be left or right where left = 0, right = 1
+		angle - the angle in degrees to turn
+	
+	Return: nothing
+*/
+void pivot(int direction, long angle) {
+  long ticks = (angle * 3750)/360;
+  float inputSpeed = 100;
+  if(direction == LEFT) {
+    stepperRight.setSpeed(inputSpeed);//set right motor speed
+    stepperRight.move(ticks);//move distance
+    stepperRight.runSpeedToPosition();//set right motor speed
+  } else if(direction == RIGHT) {
+    stepperLeft.setSpeed(inputSpeed);//set left motor speed
+    stepperLeft.move(ticks);//move distance
+    stepperLeft.runSpeedToPosition();//set left motor speed
+  }
+  runToStop();
+}
+
 
 /*
-  INSERT DESCRIPTION HERE, what are the inputs, what does it do, functions used
+	Description: 
+		Spin is similar to pivot but instead turns the wheels at the same speed in opposite
+		directions.
+
+	Input: 
+		direction - It can be left or right where left = 0, right = 1
+		angle - the angle in degrees to turn
+
+	Return: nothing
 */
-void pivot(int direction) {
+void spin(int direction,long angle) {
+  long ticks = (angle * FULL_CIRCLE_TICKS_COUNT)/FULL_SPIN;
+  float inputSpeed = 100;
+  if(direction == LEFT) {
+    stepperRight.move(ticks);//move distance
+    stepperLeft.move(-ticks);//move distance
+  } else if(direction == RIGHT) {
+    stepperRight.move(-ticks);//move distance
+    stepperLeft.move(ticks);//move distance
+  }
+  stepperRight.setSpeed(inputSpeed);//set right motor speed
+  stepperLeft.setSpeed(inputSpeed);//set left motor speed
+  stepperRight.runSpeedToPosition();//set right motor speed
+  stepperLeft.runSpeedToPosition();//set left motor speed
+  runToStop();
 }
 
 /*
-  INSERT DESCRIPTION HERE, what are the inputs, what does it do, functions used
+	Description: 
+		
+
+	Input: 
+
+	
+	Return: nothing
 */
-void spin(int direction) {
+void turn(int direction, int distance, float radialDiff) {
+  float speedDiff = radialDiff * (1/1);
+  float slowSpeed = 400;
+  float fastSpeed = slowSpeed + speedDiff;
+  if(direction == LEFT) {
+    stepperRight.setSpeed(fastSpeed);//set right motor speed
+    stepperLeft.setSpeed(slowSpeed);//set left motor speed
+  } else if(direction == RIGHT) {
+    stepperRight.setSpeed(slowSpeed);//set right motor speed
+    stepperLeft.setSpeed(fastSpeed);//set left motor speed
+  }
+  stepperRight.runSpeedToPosition();//set right motor speed
+  stepperLeft.runSpeedToPosition();//set left motor speed
+  runToStop();
 }
 
 /*
-  INSERT DESCRIPTION HERE, what are the inputs, what does it do, functions used
+	Description: 
+		Moves the robot forward in a straight line.
+
+	Input: 
+		inches - the number of inches to move the robot.
+	
+	Return: nothing
 */
-void turn(int direction) {
+void forward(long inches) {
+  long distance = inches * TICKS_FOR_FULL_WHEEL_SPIN/INCHES_FOR_FULL_WHEEL_SPIN;
+  stepperRight.move(distance);//move distance
+  stepperLeft.move(distance);//move distance
+  stepperRight.runSpeedToPosition();//move right motor
+  stepperLeft.runSpeedToPosition();//move left motor
+  runToStop();//run until the robot reaches the target
 }
+
 /*
-  INSERT DESCRIPTION HERE, what are the inputs, what does it do, functions used
+	Description: 
+		Moves the robot backwards in a straight line.
+
+	Input: 
+		inches - the number of inches to move the robot.
+	
+	Return: nothing
 */
-void forward(int distance) {
+void reverse(long inches) {
+  long distance = inches * TICKS_FOR_FULL_WHEEL_SPIN/INCHES_FOR_FULL_WHEEL_SPIN;	
+  stepperRight.move(-distance);			//move distance backwards
+  stepperLeft.move(-distance);			//move distance backwards
+  stepperRight.runSpeedToPosition();	//move right motor
+  stepperLeft.runSpeedToPosition();		//move left motor
+  runToStop();							//run until the robot reaches the target
 }
+
 /*
-  INSERT DESCRIPTION HERE, what are the inputs, what does it do, functions used
-*/
-void reverse(int distance) {
-}
-/*
-  INSERT DESCRIPTION HERE, what are the inputs, what does it do, functions used
+	Description: 
+		Stops the robot from moving.
+
+	Input: nothing
+	
+	Return: nothing
 */
 void stop() {
+  stepperRight.stop();	//stop right motor
+  stepperLeft.stop();	//stop left motor
 }
 
 
+// -- SPECIAL MOVEMENT FUNCTIONS -- //
+
 /*
-  INSERT DESCRIPTION HERE, what are the inputs, what does it do, functions used
+	Description: 
+		Moves the robot to face the given angle by calling pivot. 
+
+	Input: 
+		angle - the angle in degrees to turn. 
+	
+	Return: nothing
 */
-void goToAngle(int Angle) {
+void goToAngle(int angle) {
+  if(angle > 0) {
+    pivot(LEFT, angle);
+  } else  if (angle < 0) {
+    pivot(RIGHT, -angle);
+  }
 }
 
 /*
-  INSERT DESCRIPTION HERE, what are the inputs, what does it do, functions used
+	Description: 
+		Calculates the angle and length to move the robot to the given position.
+		It calls goToAngle based on the calculated angle then finally calls forward()
+		to move the correct calculated distance.
+
+	Input: 
+		x - is the x position where positive x is in front of the robot and negative is backwards
+		y - is the y position where positive y is to the left and negative is the right.
+	
+	Return: nothing
 */
-void goToGoal(int x, int y) {
+void goToGoal(double x, double y) {
+  int angle;
+  if(x > 0 && y > 0) {				// correctly calculates if left front quadrant
+    angle = atan2(y,x)*180/Pi;
+  } else if(x > 0 && y < 0) {		// correctly calculates if right front quadrant
+    angle = atan2(abs(y),x)*180/Pi;
+    angle = -angle;
+  } else if(x < 0 && y > 0) {		// correctly calculates if left rear quadrant
+    angle = atan2(y,abs(x))*180/Pi;
+    angle = 180 - angle;
+  } else if(x < 0 && y < 0) {		// correctly calculates if right rear quadrant
+    angle = atan2(abs(y),abs(x))*180/Pi;
+    angle = angle + 180;
+  } else if(x == 0 && y > 0) {		// directly right
+    angle = RIGHT_ANGLE;
+  } else if(x == 0 && y < 0) {		// directly left
+    angle = -RIGHT_ANGLE;
+  } else if(x > 0 && y == 0) {		// straight ahead
+    angle = 0;
+  } else if(x < 0 && y == 0) {		// directly behind
+    angle = 180;
+  } else {							// dont' move because both x,y are 0		
+    angle = 0;
+  }
+  goToAngle(angle);		// turn to the calculated angle
+  
+  long distance = sqrt(x*x + y*y);	// calculates the distance to travel at the given angle
+  forward(distance);
 }
 
 /*
-  INSERT DESCRIPTION HERE, what are the inputs, what does it do, functions used
+	Description: 
+		Makes a square given the length of each side. It calls the goToGoal to make each side.
+
+	Input: 
+		side - the length of each side in inches
+	
+	Return: nothing
 */
 void moveSquare(int side) {
+  if(side > 0) {		// why do we need this???
+    goToGoal(side,0);
+  } else if (side < 0) {
+    goToGoal(-side,0);
+  }
+  delay(REST_DELAY);			// Delay after each to give some time so the momentum doesn't throw us off course
+  goToGoal(0,side);
+  delay(REST_DELAY);
+  goToGoal(0,side);
+  delay(REST_DELAY);
+  goToGoal(0,side);
+  delay(REST_DELAY);
+  
+  // depending on which way we make the square we need to turn one last time the correct way
+  // to face the correct direction to make another sqaure
+  if(side > 0) {							
+    goToAngle(RIGHT_ANGLE);
+  } else if (side < 0) {
+    goToAngle(-RIGHT_ANGLE);
+  }
+  delay(REST_DELAY);
 }
-
 /*
-  INSERT DESCRIPTION HERE, what are the inputs, what does it do, functions used
+	Description: 
+		
+
+	Input: 
+
+	
+	Return: nothing
 */
 void moveCircle(int diam, int dir) {
 }
 
 /*
-  The moveFigure8() function takes the diameter in inches as the input. It uses the moveCircle() function
-  twice with 2 different direcitons to create a figure 8 with circles of the given diameter.
+	Description: 
+		The moveFigure8() function takes the diameter in inches as the input. It uses the moveCircle() function
+  		twice with 2 different direcitons to create a figure 8 with circles of the given diameter.
+
+	Input: 
+
+	
+	Return: nothing
 */
 void moveFigure8(int diam) {
 }
