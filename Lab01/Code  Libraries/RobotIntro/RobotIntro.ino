@@ -445,13 +445,9 @@ void goToGoal(double x, double y) {
 	Return: nothing
 */
 void moveSquare(int side) {
-  if(side > 0) {		// why do we need this???
-    goToGoal(side,0);
-  } else if (side < 0) {
-    goToGoal(-side,0);
-  }
+  goToGoal(abs(side),0);  // move forward
   delay(REST_DELAY);			// Delay after each to give some time so the momentum doesn't throw us off course
-  goToGoal(0,side);
+  goToGoal(0,side);       // turn
   delay(REST_DELAY);
   goToGoal(0,side);
   delay(REST_DELAY);
