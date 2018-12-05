@@ -339,7 +339,7 @@ void spin(int direction,long angle) {
 	Return: nothing
 */
 void turn(int direction, long angle, long diameter) {
-  float circumferenceRatio = (diameter + 8.25) / diameter;
+  float circumferenceRatio = (diameter + 16.5) / diameter;
   long ticksInnerWheel = (PI * diameter * TICKS_FOR_FULL_WHEEL_SPIN/INCHES_FOR_FULL_WHEEL_SPIN) * (angle/360);
   long ticksOuterWheel = ticksInnerWheel * circumferenceRatio;
 
