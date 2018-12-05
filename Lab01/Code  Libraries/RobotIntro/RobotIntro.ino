@@ -149,12 +149,12 @@ void loop()
 //  delay(500);
 //  pivot(RIGHT, 360);
 //  delay(500);
-//  turn(LEFT, 360, 12);
+  turn(LEFT, 360, 12);
 //  delay(500);
 //  turn(RIGHT, 360, 12);
 
 //  moveSquare(12);
-  goToAngle(720);
+//  goToAngle(720);
 
   delay(100000);
 }
@@ -332,16 +332,18 @@ void spin(int direction,long angle) {
       This function turns the robot a given a direction
 
 	Input: 
-      direction
+      direction - LEFT or RIGHT, 0 or 1, the direction to go
+      angle - the amount to go around the "circle"
+      diameter - the size of the "circle" to go around
 	
 	Return: nothing
 */
 void turn(int direction, long angle, long diameter) {
-  float circumferenceRatio = ((diameter + 16.5) / diameter);
-  long ticksInnerWheel = ((PI * diameter*angle * TICKS_FOR_FULL_WHEEL_SPIN/INCHES_FOR_FULL_WHEEL_SPIN) /360);
+  float circumferenceRatio = (diameter + 8.25) / diameter;
+  long ticksInnerWheel = (PI * diameter * TICKS_FOR_FULL_WHEEL_SPIN/INCHES_FOR_FULL_WHEEL_SPIN) * (angle/360);
   long ticksOuterWheel = ticksInnerWheel * circumferenceRatio;
 
-  float slowSpeed = 800;
+  float slowSpeed = 457;  // ~ 6 in/s
   float fastSpeed = slowSpeed*circumferenceRatio;
 
   Serial.println(fastSpeed);
