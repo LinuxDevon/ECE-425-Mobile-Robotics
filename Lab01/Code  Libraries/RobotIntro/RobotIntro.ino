@@ -102,7 +102,7 @@ void setup()
   digitalWrite(stepperEnable, stepperEnTrue);//turns on the stepper motor driver
   digitalWrite(enableLED, HIGH);//turn on enable LED
   delay(1000); //always wait 1 second before the robot moves
-  //Serial.begin(9600); //start serial communication at 9600 baud rate for debugging
+  Serial.begin(9600); //start serial communication at 9600 baud rate for debugging
 }
 
 void loop()
@@ -119,16 +119,27 @@ void loop()
 //  move1();//call move back and forth function
 //  move2();//call move back and forth function with AccelStepper library functions
 //  move3();//call move back and forth function with MultiStepper library functions
-//  forward(12);
+  stepperRight.move(800);
+  stepperLeft.move(800);
+  runToStop();
+  delay(500);
 //  reverse(12);
-//  turn(LEFT);
-//  spin(LEFT,360);
-//  pivot(LEFT,360);
-//  goToAngle(-45);
-//  goToGoal(0,0);
-//  moveSquare(24);
-//  delay(100000);
-//  stop();
+//  delay(500);
+//  spin(LEFT, 360);
+//  delay(500);
+//  spin(RIGHT, 360);
+//  delay(500);
+//  pivot(LEFT, 360);
+//  delay(500);
+//  pivot(RIGHT, 360);
+//  delay(500);
+//  turn(LEFT, 360, 12);
+//  delay(500);
+//  turn(RIGHT, 360, 12);
+
+//  moveSquare(12);
+
+  delay(100000);
 }
 
 // -- PREWRITTEN FUNCTIONS OF MOVEMENT -- //
@@ -301,23 +312,35 @@ void spin(int direction,long angle) {
 
 /*
 	Description: 
-		
+      This function turns the robot a given a direction
 
 	Input: 
-
+      direction
 	
 	Return: nothing
 */
-void turn(int direction, int distance, float radialDiff) {
-  float speedDiff = radialDiff * (1/1);
-  float slowSpeed = 400;
-  float fastSpeed = slowSpeed + speedDiff;
+void turn(int direction, long angle, long diameter) {
+  float circumferenceRatio = ((diameter + 16.5) / diameter);
+  long ticksInnerWheel = ((PI * diameter*angle * TICKS_FOR_FULL_WHEEL_SPIN/INCHES_FOR_FULL_WHEEL_SPIN) /360);
+  long ticksOuterWheel = ticksInnerWheel * circumferenceRatio;
+
+  float slowSpeed = 800;
+  float fastSpeed = slowSpeed*circumferenceRatio;
+
+  Serial.println(fastSpeed);
+  Serial.println(circumferenceRatio);
+  Serial.println(ticksInnerWheel);
+  Serial.println(ticksOuterWheel);
   if(direction == LEFT) {
-    stepperRight.setSpeed(fastSpeed);//set right motor speed
-    stepperLeft.setSpeed(slowSpeed);//set left motor speed
+    stepperRight.move(ticksOuterWheel);//move distance
+    stepperLeft.move(ticksInnerWheel);//move distance
+    stepperRight.setMaxSpeed(fastSpeed);//set right motor speed
+    stepperLeft.setMaxSpeed(slowSpeed);//set left motor speed
   } else if(direction == RIGHT) {
-    stepperRight.setSpeed(slowSpeed);//set right motor speed
-    stepperLeft.setSpeed(fastSpeed);//set left motor speed
+    stepperRight.move(ticksInnerWheel);//move distance
+    stepperLeft.move(ticksOuterWheel);//move distance
+    stepperRight.setMaxSpeed(slowSpeed);//set right motor speed
+    stepperLeft.setMaxSpeed(fastSpeed);//set left motor speed
   }
   stepperRight.runSpeedToPosition();//set right motor speed
   stepperLeft.runSpeedToPosition();//set left motor speed
@@ -473,6 +496,8 @@ void moveSquare(int side) {
 	Return: nothing
 */
 void moveCircle(int diam, int dir) {
+//  speedDiff=
+//  turn(dir,360,speeddiff);
 }
 
 /*
