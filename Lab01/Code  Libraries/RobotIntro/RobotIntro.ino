@@ -82,6 +82,10 @@ MultiStepper steppers;//create instance to control multiple steppers at the same
 #define RIGHT_ANGLE 90				// 90 degrees
 #define FULL_CIRCLE_TICKS_COUNT 1900 // number of ticks to make a full spin
 
+#define RED_LED 14
+#define GREEN_LED 16
+#define YELLOW_LED 15
+
 
 void setup()
 {
@@ -103,6 +107,18 @@ void setup()
   digitalWrite(enableLED, HIGH);//turn on enable LED
   delay(1000); //always wait 1 second before the robot moves
   Serial.begin(9600); //start serial communication at 9600 baud rate for debugging
+
+  // LED SETUP
+  // set as outputs
+  pinMode(RED_LED, OUTPUT);
+  pinMode(GREEN_LED, OUTPUT);
+  pinMode(YELLOW_LED, OUTPUT);
+
+  // turn off at first
+  // 0 - off , 1 - on
+  digitalWrite(RED_LED, LOW);
+  digitalWrite(GREEN_LED, LOW);
+  digitalWrite(YELLOW_LED, LOW);
 }
 
 void loop()
@@ -119,10 +135,10 @@ void loop()
 //  move1();//call move back and forth function
 //  move2();//call move back and forth function with AccelStepper library functions
 //  move3();//call move back and forth function with MultiStepper library functions
-  stepperRight.move(800);
-  stepperLeft.move(800);
-  runToStop();
-  delay(500);
+//  stepperRight.move(800);
+//  stepperLeft.move(800);
+//  runToStop();
+//  delay(500);
 //  reverse(12);
 //  delay(500);
 //  spin(LEFT, 360);
@@ -138,6 +154,7 @@ void loop()
 //  turn(RIGHT, 360, 12);
 
 //  moveSquare(12);
+  goToAngle(720);
 
   delay(100000);
 }
@@ -409,11 +426,15 @@ void stop() {
 	Return: nothing
 */
 void goToAngle(int angle) {
+  digitalWrite(GREEN_LED, HIGH);  // turn on the green led for this function
+ 
   if(angle > 0) {
     pivot(LEFT, angle);
   } else  if (angle < 0) {
     pivot(RIGHT, -angle);
   }
+
+  digitalWrite(GREEN_LED, LOW); // turn off leds
 }
 
 /*
@@ -429,6 +450,9 @@ void goToAngle(int angle) {
 	Return: nothing
 */
 void goToGoal(double x, double y) {
+  digitalWrite(GREEN_LED, HIGH);  // turn on the green and yellow led for this function
+  digitalWrite(YELLOW_LED, HIGH); 
+   
   int angle;
   if(x > 0 && y > 0) {				// correctly calculates if left front quadrant
     angle = atan2(y,x)*180/Pi;
@@ -456,6 +480,9 @@ void goToGoal(double x, double y) {
   
   long distance = sqrt(x*x + y*y);	// calculates the distance to travel at the given angle
   forward(distance);
+
+  digitalWrite(GREEN_LED, LOW);  // turn off leds
+  digitalWrite(YELLOW_LED, LOW);  
 }
 
 /*
@@ -468,6 +495,10 @@ void goToGoal(double x, double y) {
 	Return: nothing
 */
 void moveSquare(int side) {
+  digitalWrite(GREEN_LED, HIGH);  // turn on green, red, yellow for this function
+  digitalWrite(RED_LED, HIGH);
+  digitalWrite(YELLOW_LED, HIGH);
+  
   goToGoal(abs(side),0);  // move forward
   delay(REST_DELAY);			// Delay after each to give some time so the momentum doesn't throw us off course
   goToGoal(0,side);       // turn
@@ -485,6 +516,10 @@ void moveSquare(int side) {
     goToAngle(-RIGHT_ANGLE);
   }
   delay(REST_DELAY);
+
+  digitalWrite(GREEN_LED, LOW);     // turn off the leds that were set
+  digitalWrite(RED_LED, LOW);
+  digitalWrite(YELLOW_LED, LOW);
 }
 /*
 	Description: 
@@ -496,8 +531,10 @@ void moveSquare(int side) {
 	Return: nothing
 */
 void moveCircle(int diam, int dir) {
+  digitalWrite(RED_LED, HIGH);  // turn on the red led for this function
 //  speedDiff=
 //  turn(dir,360,speeddiff);
+  digitalWrite(RED_LED, LOW);
 }
 
 /*
@@ -511,4 +548,9 @@ void moveCircle(int diam, int dir) {
 	Return: nothing
 */
 void moveFigure8(int diam) {
+  digitalWrite(RED_LED, HIGH);  // turn on the red and yellow led for this function
+  digitalWrite(YELLOW_LED, HIGH);  
+
+  digitalWrite(RED_LED, LOW);  // turn off the leds set for this function
+  digitalWrite(YELLOW_LED, LOW);
 }
