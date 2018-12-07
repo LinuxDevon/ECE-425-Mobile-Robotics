@@ -44,6 +44,21 @@
   digital pin 14 - red LED in series with 220 ohm resistor
   digital pin 15 - green LED in series with 220 ohm resistor
   digital pin 16 - yellow LED in series with 220 ohm resistor
+
+  Authors: Devon Adair & Hunter LaMantia
+  Date Created: 11/30/2018
+  Description: Does basic movement functions
+  forward(): moves robot forward
+  reverse(): moves robot backward
+  spin(): robot spins in place
+  pivot(): robot pivots around one wheel
+  turn(): robot moves in an arc
+  stop(): stops robot movement
+  moveCircle(); robot moves in a circle
+  moveFigure8(): robot moves in a figure 8
+  moveSquare(): robot moves in a square
+  goToAngle(): robot turns to face a specific angle
+  goToGoal(): robot turns toward goal and move towards it
 */
 
 #include <AccelStepper.h>//include the stepper motor library
@@ -72,7 +87,7 @@ MultiStepper steppers;//create instance to control multiple steppers at the same
 // USER DEFINES
 #define LEFT 0
 #define RIGHT 1
-#define Pi 3.15149265358979
+#define Pi 3.14159265358979
 
 #define REST_DELAY 500				// half second delay
 #define ONE_SECOND 1000 			// one second delay
@@ -106,7 +121,7 @@ void setup()
   digitalWrite(stepperEnable, stepperEnTrue);//turns on the stepper motor driver
   digitalWrite(enableLED, HIGH);//turn on enable LED
   delay(1000); //always wait 1 second before the robot moves
-  Serial.begin(9600); //start serial communication at 9600 baud rate for debugging
+//  Serial.begin(9600); //start serial communication at 9600 baud rate for debugging
 
   // LED SETUP
   // set as outputs
@@ -125,36 +140,36 @@ void loop()
 {
   //uncomment each function one at a time to see what the code does
 
-//800 ticks = 10.5 inches
-//800 ticks = 135 degrees
-//100 speed = 10.5in / 0.5s = 21in/s
-//100 speed = in / s = rad/s (pivoting)
-//100 speed = in / s = rad/s (spinning)
-//100 speed = in / s = rad/s (turning)
-  
 //  move1();//call move back and forth function
 //  move2();//call move back and forth function with AccelStepper library functions
 //  move3();//call move back and forth function with MultiStepper library functions
 //  stepperRight.move(800);
 //  stepperLeft.move(800);
 //  runToStop();
+//  forward(12, 12);
 //  delay(500);
-//  reverse(12);
+//  reverse(12, 12);
 //  delay(500);
-//  spin(LEFT, 360);
+//  spin(LEFT, 360, 90);
 //  delay(500);
-//  spin(RIGHT, 360);
+//  spin(RIGHT, 360, 180);
 //  delay(500);
-//  pivot(LEFT, 360);
+//  pivot(LEFT, 360, 90);
 //  delay(500);
-//  pivot(RIGHT, 360);
+//  pivot(RIGHT, 360, 180);
 //  delay(500);
-  turn(LEFT, 360, 12);
+//  turn(LEFT, 360, 48, 15);
 //  delay(500);
-//  turn(RIGHT, 360, 12);
-
+//  turn(RIGHT, 360, 48, 15);
+//  moveCircle(LEFT, 30);
+//  delay(500);
+//  moveFigure8(30);
+//  delay(500);
 //  moveSquare(12);
-//  goToAngle(720);
+//  delay(500);
+//  goToAngle(-60);
+//  delay(500);
+//  goToGoal(12,12);
 
   delay(100000);
 }
@@ -280,18 +295,19 @@ void runToStop ( void ) {
 	Input: 
 		direction - It can be left or right where left = 0, right = 1
 		angle - the angle in degrees to turn
+    inputSpeed - angular speed (degrees/s)
 	
 	Return: nothing
 */
-void pivot(int direction, long angle) {
-  long ticks = (angle * 3750)/360;
-  float inputSpeed = 100;
+void pivot(int direction, long angle, long inputSpeed) {
+  long ticks = (angle * 2 * FULL_CIRCLE_TICKS_COUNT)/FULL_SPIN;//FULL_CIRCLE_TICKS_COUNT was set for spin(), so we multiply it by 2 to work here
+  long tickSpeed = (inputSpeed * 2 * FULL_CIRCLE_TICKS_COUNT)/FULL_SPIN;
   if(direction == LEFT) {
-    stepperRight.setSpeed(inputSpeed);//set right motor speed
+    stepperRight.setMaxSpeed(tickSpeed);//set right motor speed
     stepperRight.move(ticks);//move distance
     stepperRight.runSpeedToPosition();//set right motor speed
   } else if(direction == RIGHT) {
-    stepperLeft.setSpeed(inputSpeed);//set left motor speed
+    stepperLeft.setMaxSpeed(tickSpeed);//set left motor speed
     stepperLeft.move(ticks);//move distance
     stepperLeft.runSpeedToPosition();//set left motor speed
   }
@@ -307,12 +323,13 @@ void pivot(int direction, long angle) {
 	Input: 
 		direction - It can be left or right where left = 0, right = 1
 		angle - the angle in degrees to turn
+    inputSpeed - angular speed (degrees/s)
 
 	Return: nothing
 */
-void spin(int direction,long angle) {
+void spin(int direction,long angle, long inputSpeed) {
   long ticks = (angle * FULL_CIRCLE_TICKS_COUNT)/FULL_SPIN;
-  float inputSpeed = 100;
+  long tickSpeed = (inputSpeed * FULL_CIRCLE_TICKS_COUNT)/FULL_SPIN;
   if(direction == LEFT) {
     stepperRight.move(ticks);//move distance
     stepperLeft.move(-ticks);//move distance
@@ -320,8 +337,8 @@ void spin(int direction,long angle) {
     stepperRight.move(-ticks);//move distance
     stepperLeft.move(ticks);//move distance
   }
-  stepperRight.setSpeed(inputSpeed);//set right motor speed
-  stepperLeft.setSpeed(inputSpeed);//set left motor speed
+  stepperRight.setMaxSpeed(tickSpeed);//set right motor speed
+  stepperLeft.setMaxSpeed(tickSpeed);//set left motor speed
   stepperRight.runSpeedToPosition();//set right motor speed
   stepperLeft.runSpeedToPosition();//set left motor speed
   runToStop();
@@ -335,33 +352,34 @@ void spin(int direction,long angle) {
       direction - LEFT or RIGHT, 0 or 1, the direction to go
       angle - the amount to go around the "circle"
       diameter - the size of the "circle" to go around
+      timeToRun() - time the robot will take to complete the movement
 	
 	Return: nothing
 */
-void turn(int direction, long angle, long diameter) {
-  float circumferenceRatio = (diameter + 16.5) / diameter;
-  long ticksInnerWheel = (PI * diameter * TICKS_FOR_FULL_WHEEL_SPIN/INCHES_FOR_FULL_WHEEL_SPIN) * (angle/360);
+void turn(int direction, float angle, float diameter, float timeToRun) {
+  float circumferenceRatio = (diameter + 16.5) / diameter;//ratio calculated from geometry of robot
+  float percentOfCircle = angle/360;
+  long innerCorrectionFactor = 400 * percentOfCircle;//400 from tiral and error
+  long outerCorrectionFactor = 300 * percentOfCircle;//300 from trial and error
+  long ticksInnerWheel = percentOfCircle * PI * diameter * TICKS_FOR_FULL_WHEEL_SPIN/INCHES_FOR_FULL_WHEEL_SPIN;
   long ticksOuterWheel = ticksInnerWheel * circumferenceRatio;
+  long correctedTicksInnerWheel = ticksInnerWheel + innerCorrectionFactor;
+  long correctedTicksOuterWheel = ticksOuterWheel + outerCorrectionFactor;
 
-  float slowSpeed = 457;  // ~ 6 in/s
-  float fastSpeed = slowSpeed*circumferenceRatio;
-
-  Serial.println(fastSpeed);
-  Serial.println(circumferenceRatio);
-  Serial.println(ticksInnerWheel);
-  Serial.println(ticksOuterWheel);
+  float slowSpeed = ticksInnerWheel/timeToRun;
+  float fastSpeed = ticksOuterWheel/timeToRun;
   if(direction == LEFT) {
-    stepperRight.move(ticksOuterWheel);//move distance
-    stepperLeft.move(ticksInnerWheel);//move distance
+    stepperRight.move(correctedTicksOuterWheel);//move distance
+    stepperLeft.move(correctedTicksInnerWheel);//move distance
     stepperRight.setMaxSpeed(fastSpeed);//set right motor speed
     stepperLeft.setMaxSpeed(slowSpeed);//set left motor speed
   } else if(direction == RIGHT) {
-    stepperRight.move(ticksInnerWheel);//move distance
-    stepperLeft.move(ticksOuterWheel);//move distance
+    stepperRight.move(correctedTicksInnerWheel);//move distance
+    stepperLeft.move(correctedTicksOuterWheel);//move distance
     stepperRight.setMaxSpeed(slowSpeed);//set right motor speed
     stepperLeft.setMaxSpeed(fastSpeed);//set left motor speed
   }
-  stepperRight.runSpeedToPosition();//set right motor speed
+  stepperRight.runSpeedToPosition();
   stepperLeft.runSpeedToPosition();//set left motor speed
   runToStop();
 }
@@ -372,13 +390,17 @@ void turn(int direction, long angle, long diameter) {
 
 	Input: 
 		inches - the number of inches to move the robot.
+    inputSpeed - linear speed (in/s)
 	
 	Return: nothing
 */
-void forward(long inches) {
+void forward(long inches, long inputSpeed) {
   long distance = inches * TICKS_FOR_FULL_WHEEL_SPIN/INCHES_FOR_FULL_WHEEL_SPIN;
+  long tickSpeed = inputSpeed * TICKS_FOR_FULL_WHEEL_SPIN/INCHES_FOR_FULL_WHEEL_SPIN;
   stepperRight.move(distance);//move distance
   stepperLeft.move(distance);//move distance
+  stepperRight.setMaxSpeed(tickSpeed);//set speed
+  stepperLeft.setMaxSpeed(tickSpeed);//set speed
   stepperRight.runSpeedToPosition();//move right motor
   stepperLeft.runSpeedToPosition();//move left motor
   runToStop();//run until the robot reaches the target
@@ -390,13 +412,17 @@ void forward(long inches) {
 
 	Input: 
 		inches - the number of inches to move the robot.
+    inputSpeed - linear speed (in/s)
 	
 	Return: nothing
 */
-void reverse(long inches) {
-  long distance = inches * TICKS_FOR_FULL_WHEEL_SPIN/INCHES_FOR_FULL_WHEEL_SPIN;	
+void reverse(long inches, long inputSpeed) {
+  long distance = inches * TICKS_FOR_FULL_WHEEL_SPIN/INCHES_FOR_FULL_WHEEL_SPIN;
+  long tickSpeed = inputSpeed * TICKS_FOR_FULL_WHEEL_SPIN/INCHES_FOR_FULL_WHEEL_SPIN;
   stepperRight.move(-distance);			//move distance backwards
   stepperLeft.move(-distance);			//move distance backwards
+  stepperRight.setMaxSpeed(tickSpeed);//set speed
+  stepperLeft.setMaxSpeed(tickSpeed);//set speed
   stepperRight.runSpeedToPosition();	//move right motor
   stepperLeft.runSpeedToPosition();		//move left motor
   runToStop();							//run until the robot reaches the target
@@ -431,9 +457,9 @@ void goToAngle(int angle) {
   digitalWrite(GREEN_LED, HIGH);  // turn on the green led for this function
  
   if(angle > 0) {
-    pivot(LEFT, angle);
+    pivot(LEFT, angle, 90);//90 sets it to 90 degrees per second
   } else  if (angle < 0) {
-    pivot(RIGHT, -angle);
+    pivot(RIGHT, -angle, 90);
   }
 
   digitalWrite(GREEN_LED, LOW); // turn off leds
@@ -481,7 +507,7 @@ void goToGoal(double x, double y) {
   goToAngle(angle);		// turn to the calculated angle
   
   long distance = sqrt(x*x + y*y);	// calculates the distance to travel at the given angle
-  forward(distance);
+  forward(distance, 12);//12 sets the speed to 12 inches per second
 
   digitalWrite(GREEN_LED, LOW);  // turn off leds
   digitalWrite(YELLOW_LED, LOW);  
@@ -525,17 +551,17 @@ void moveSquare(int side) {
 }
 /*
 	Description: 
-		
+		calls turn() in order to move in a complete circle
 
 	Input: 
-
+    dir - direction (left or right)
+    diameter - diameter of circle (inches)
 	
 	Return: nothing
 */
-void moveCircle(int diam, int dir) {
+void moveCircle(int dir, int diameter) {
   digitalWrite(RED_LED, HIGH);  // turn on the red led for this function
-//  speedDiff=
-//  turn(dir,360,speeddiff);
+  turn(dir, 360, diameter, 15); // 360 makes it do a full circle, 15 sets the time to 15 seconds
   digitalWrite(RED_LED, LOW);
 }
 
@@ -545,14 +571,15 @@ void moveCircle(int diam, int dir) {
   		twice with 2 different direcitons to create a figure 8 with circles of the given diameter.
 
 	Input: 
-
+    diam - diameter of the two circles
 	
 	Return: nothing
 */
 void moveFigure8(int diam) {
   digitalWrite(RED_LED, HIGH);  // turn on the red and yellow led for this function
   digitalWrite(YELLOW_LED, HIGH);  
-
+  moveCircle(LEFT,diam);
+  moveCircle(RIGHT,diam);
   digitalWrite(RED_LED, LOW);  // turn off the leds set for this function
   digitalWrite(YELLOW_LED, LOW);
 }
