@@ -142,7 +142,7 @@ void loop()
 
 //  move1();//call move back and forth function
 //  move2();//call move back and forth function with AccelStepper library functions
-//  move3();//call move back and forth function with MultiStepper library functions
+  move3();//call move back and forth function with MultiStepper library functions
 //  stepperRight.move(800);
 //  stepperLeft.move(800);
 //  runToStop();
@@ -170,6 +170,20 @@ void loop()
 //  goToAngle(-60);
 //  delay(500);
 //  goToGoal(12,12);
+
+//  moveCircle(LEFT,12);
+//  moveCircle(LEFT,36);
+//  moveFigure8(24);
+//  delay(5000);
+//  moveFigure8(18);
+  
+//  goToGoal(12,12);
+//  delay(5000);
+//  goToGoal(-24,36);
+//  delay(5000);
+//  moveSquare(30);
+//  delay(5000);
+//  moveSquare(36);
 
   delay(100000);
 }
@@ -254,13 +268,13 @@ void move3() {
   positions[0] = 800;//right motor absolute position
   positions[1] = 800;//left motor absolute position
   steppers.moveTo(positions);
-  steppers.runSpeedToPosition(); // Blocks until all are in position
+  steppers.run(); // Blocks until all are in position
   delay(1000);//wait one second
   // Move to a different coordinate
   positions[0] = 0;//right motor absolute position
   positions[1] = 0;//left motor absolute position
   steppers.moveTo(positions);
-  steppers.runSpeedToPosition(); // Blocks until all are in position
+  steppers.run(); // Blocks until all are in position
   delay(1000);//wait one second
 }
 
@@ -352,22 +366,22 @@ void spin(int direction,long angle, long inputSpeed) {
       direction - LEFT or RIGHT, 0 or 1, the direction to go
       angle - the amount to go around the "circle"
       diameter - the size of the "circle" to go around
-      timeToRun() - time the robot will take to complete the movement
 	
 	Return: nothing
 */
-void turn(int direction, float angle, float diameter, float timeToRun) {
-  float circumferenceRatio = (diameter + 16.5) / diameter;//ratio calculated from geometry of robot
+void turn(int direction, float angle, float diameter) {
+  float numerator = diameter + 15.75;//calculated from geometry of robot
+  float circumferenceRatio = numerator / diameter;//ratio calculated from geometry of robot
   float percentOfCircle = angle/360;
-  long innerCorrectionFactor = 400 * percentOfCircle;//400 from tiral and error
-  long outerCorrectionFactor = 300 * percentOfCircle;//300 from trial and error
-  long ticksInnerWheel = percentOfCircle * PI * diameter * TICKS_FOR_FULL_WHEEL_SPIN/INCHES_FOR_FULL_WHEEL_SPIN;
-  long ticksOuterWheel = ticksInnerWheel * circumferenceRatio;
-  long correctedTicksInnerWheel = ticksInnerWheel + innerCorrectionFactor;
-  long correctedTicksOuterWheel = ticksOuterWheel + outerCorrectionFactor;
+  float scaling = diameter/36;//calibrated via trial and error
+  long innerCorrectionFactor = 400 * percentOfCircle * scaling;//400 from trial and error
+  float inchesToTicks = TICKS_FOR_FULL_WHEEL_SPIN/INCHES_FOR_FULL_WHEEL_SPIN;
+  float correctedTicksInnerWheel = percentOfCircle * PI * diameter * inchesToTicks + innerCorrectionFactor;
+  float correctedTicksOuterWheel = correctedTicksInnerWheel * circumferenceRatio;
 
-  float slowSpeed = ticksInnerWheel/timeToRun;
-  float fastSpeed = ticksOuterWheel/timeToRun;
+  float slowSpeed = 400;//speed that we found to make the robot behave well at a good range of diameters
+  float fastSpeed = slowSpeed * circumferenceRatio;
+  
   if(direction == LEFT) {
     stepperRight.move(correctedTicksOuterWheel);//move distance
     stepperLeft.move(correctedTicksInnerWheel);//move distance
@@ -561,7 +575,7 @@ void moveSquare(int side) {
 */
 void moveCircle(int dir, int diameter) {
   digitalWrite(RED_LED, HIGH);  // turn on the red led for this function
-  turn(dir, 360, diameter, 15); // 360 makes it do a full circle, 15 sets the time to 15 seconds
+  turn(dir, 360, diameter); // 360 makes it do a full circle
   digitalWrite(RED_LED, LOW);
 }
 
