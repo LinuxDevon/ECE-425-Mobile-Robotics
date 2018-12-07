@@ -142,7 +142,7 @@ void loop()
 
 //  move1();//call move back and forth function
 //  move2();//call move back and forth function with AccelStepper library functions
-//  move3();//call move back and forth function with MultiStepper library functions
+  move3();//call move back and forth function with MultiStepper library functions
 //  stepperRight.move(800);
 //  stepperLeft.move(800);
 //  runToStop();
@@ -268,13 +268,13 @@ void move3() {
   positions[0] = 800;//right motor absolute position
   positions[1] = 800;//left motor absolute position
   steppers.moveTo(positions);
-  steppers.runSpeedToPosition(); // Blocks until all are in position
+  steppers.run(); // Blocks until all are in position
   delay(1000);//wait one second
   // Move to a different coordinate
   positions[0] = 0;//right motor absolute position
   positions[1] = 0;//left motor absolute position
   steppers.moveTo(positions);
-  steppers.runSpeedToPosition(); // Blocks until all are in position
+  steppers.run(); // Blocks until all are in position
   delay(1000);//wait one second
 }
 
@@ -377,7 +377,7 @@ void turn(int direction, float angle, float diameter) {
   long innerCorrectionFactor = 400 * percentOfCircle * scaling;//400 from trial and error
   float inchesToTicks = TICKS_FOR_FULL_WHEEL_SPIN/INCHES_FOR_FULL_WHEEL_SPIN;
   float correctedTicksInnerWheel = percentOfCircle * PI * diameter * inchesToTicks + innerCorrectionFactor;
-  float correctedTicksOuterWheel = ticksInnerWheel * circumferenceRatio;
+  float correctedTicksOuterWheel = correctedTicksInnerWheel * circumferenceRatio;
 
   float slowSpeed = 400;//speed that we found to make the robot behave well at a good range of diameters
   float fastSpeed = slowSpeed * circumferenceRatio;
