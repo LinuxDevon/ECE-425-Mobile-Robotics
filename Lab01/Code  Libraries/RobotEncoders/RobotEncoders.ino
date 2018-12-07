@@ -49,10 +49,10 @@
 #include <MultiStepper.h>       //include multiple stepper motor library
 
 //define pin numbers and variables
-const int rtStepPin = 50;       //right stepper motor step pin
-const int rtDirPin = 51;        // right stepper motor direction pin
-const int ltStepPin = 52;       //left stepper motor step pin
-const int ltDirPin = 53;        //left stepper motor direction pin
+const int rtStepPin = 46;       //right stepper motor step pin
+const int rtDirPin = 53;        // right stepper motor direction pin
+const int ltStepPin = 44;       //left stepper motor step pin
+const int ltDirPin = 49;        //left stepper motor direction pin
 const int stepTime = 500;       //delay time between high and low on step pin
 const int ltEncoder = 2;        //left encoder pin
 const int rtEncoder = 3;        //right encoder pin
@@ -105,7 +105,7 @@ void setup() {
 
 //the loop funciton runs continuously to move the robot wheels and count encoder ticks
 void loop() {
-  move1(FWD, qua_rot);            //move the robot wheels
+  move1(FWD, two2_rot);            //move the robot wheels
   print_data();                   //prints encoder data
   delay(wait_time);               //wait to move robot
 }
@@ -163,6 +163,7 @@ void move1(int dir, int amt) {
     digitalWrite(ltStepPin, LOW);
     delayMicroseconds(stepTime);
   }
+//  delay(Wait_time); // One second delay
 }
 
 /*
