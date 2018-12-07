@@ -80,6 +80,14 @@ AccelStepper stepperRight(AccelStepper::DRIVER, rtStepPin, rtDirPin);//create in
 AccelStepper stepperLeft(AccelStepper::DRIVER, ltStepPin, ltDirPin);//create instance of left stepper motor object (2 driver pins, step pin 50, direction input pin 51)
 MultiStepper steppers;//create instance to control multiple steppers at the same time
 
+#define REST_DELAY 500        // half second delay
+#define ONE_SECOND 1000       // one second delay
+#define FULL_SPIN 360       // 360 degrees
+#define TICKS_FOR_FULL_WHEEL_SPIN 800
+#define INCHES_FOR_FULL_WHEEL_SPIN 10.5
+#define RIGHT_ANGLE 90        // 90 degrees
+#define FULL_CIRCLE_TICKS_COUNT 1900 // number of ticks to make a full spin
+
 
 //   the setup function runs only once to set up all variables, inputs, outpus, serial communication and interrupts
 void setup() {
@@ -105,7 +113,9 @@ void setup() {
 
 //the loop funciton runs continuously to move the robot wheels and count encoder ticks
 void loop() {
-  move1(FWD, two2_rot);            //move the robot wheels
+//  move1(FWD, two2_rot);            //move the robot wheels
+//  pivot(LEFT, 90, 90);
+  spin(LEFT, 90, 90);
   print_data();                   //prints encoder data
   delay(wait_time);               //wait to move robot
 }
@@ -164,6 +174,81 @@ void move1(int dir, int amt) {
     delayMicroseconds(stepTime);
   }
 //  delay(Wait_time); // One second delay
+}
+void runToStop ( void ) {
+  int runNow = 1;
+  int rightStopped = 0;
+  int leftStopped = 0;
+
+  while (runNow) {
+    if (!stepperRight.run()) {
+      rightStopped = 1;
+      stepperRight.stop();//stop right motor
+    }
+    if (!stepperLeft.run()) {
+      leftStopped = 1;
+      stepperLeft.stop();//stop ledt motor
+    }
+    if (rightStopped && leftStopped) {
+      runNow = 0;
+    }
+  }
+}
+
+/*
+  Description: 
+    Pivot keeps one wheel stationary and the other wheel spins until the desired angle.
+
+  Input: 
+    direction - It can be left or right where left = 0, right = 1
+    angle - the angle in degrees to turn
+    inputSpeed - angular speed (degrees/s)
+  
+  Return: nothing
+*/
+void pivot(int direction, long angle, long inputSpeed) {
+  long ticks = (angle * 2 * FULL_CIRCLE_TICKS_COUNT)/FULL_SPIN;//FULL_CIRCLE_TICKS_COUNT was set for spin(), so we multiply it by 2 to work here
+  long tickSpeed = (inputSpeed * 2 * FULL_CIRCLE_TICKS_COUNT)/FULL_SPIN;
+  if(direction == LEFT) {
+    stepperRight.setMaxSpeed(tickSpeed);//set right motor speed
+    stepperRight.move(ticks);//move distance
+    stepperRight.runSpeedToPosition();//set right motor speed
+  } else if(direction == RIGHT) {
+    stepperLeft.setMaxSpeed(tickSpeed);//set left motor speed
+    stepperLeft.move(ticks);//move distance
+    stepperLeft.runSpeedToPosition();//set left motor speed
+  }
+  runToStop();
+}
+
+
+/*
+  Description: 
+    Spin is similar to pivot but instead turns the wheels at the same speed in opposite
+    directions.
+
+  Input: 
+    direction - It can be left or right where left = 0, right = 1
+    angle - the angle in degrees to turn
+    inputSpeed - angular speed (degrees/s)
+
+  Return: nothing
+*/
+void spin(int direction,long angle, long inputSpeed) {
+  long ticks = (angle * FULL_CIRCLE_TICKS_COUNT)/FULL_SPIN;
+  long tickSpeed = (inputSpeed * FULL_CIRCLE_TICKS_COUNT)/FULL_SPIN;
+  if(direction == LEFT) {
+    stepperRight.move(ticks);//move distance
+    stepperLeft.move(-ticks);//move distance
+  } else if(direction == RIGHT) {
+    stepperRight.move(-ticks);//move distance
+    stepperLeft.move(ticks);//move distance
+  }
+  stepperRight.setMaxSpeed(tickSpeed);//set right motor speed
+  stepperLeft.setMaxSpeed(tickSpeed);//set left motor speed
+  stepperRight.runSpeedToPosition();//set right motor speed
+  stepperLeft.runSpeedToPosition();//set left motor speed
+  runToStop();
 }
 
 /*
