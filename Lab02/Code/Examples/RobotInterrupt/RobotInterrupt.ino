@@ -34,7 +34,7 @@
   Pushbutton  A15
 */
 
-#include <PinChangeInt.h>//include pin change interrupt library
+#include <PinChangeInterrupt.h>//include pin change interrupt library
 #include <AccelStepper.h>//include the stepper motor library
 #include <MultiStepper.h>//include multiple stepper motor library
 
