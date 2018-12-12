@@ -62,8 +62,8 @@ MultiStepper steppers;//create instance to control multiple steppers at the same
 #define irRear    A9    //back IR analog pin
 #define irRight   A10   //right IR analog pin
 #define irLeft    A11   //left IR analog pin
-#define snrLeft   A12   //front left sonar 
-#define snrRight  A13  //front right sonar 
+#define snrLeft   8   //front left sonar 
+#define snrRight  9  //front right sonar 
 #define button    A15    //pushbutton 
 
 NewPing sonarLt(snrLeft, snrLeft);//create an instance of the left sonar
@@ -248,11 +248,11 @@ void updateIR() {
   irLeftAvg = analogRead(irLeft);
   irRightAvg = analogRead(irRight);
   //  print IR data
-  //    Serial.println("frontIR\tbackIR\tleftIR\trightIR");
-  //    Serial.print(irFrontAvg); Serial.print("\t");
-  //    Serial.print(irRearAvg); Serial.print("\t");
-  //    Serial.print(irLeftAvg); Serial.print("\t");
-  //    Serial.println(irRightAvg);
+//      Serial.println("frontIR\tbackIR\tleftIR\trightIR");
+//      Serial.print(irFrontAvg); Serial.print("\t");
+//      Serial.print(irRearAvg); Serial.print("\t");
+//      Serial.print(irLeftAvg); Serial.print("\t");
+//      Serial.println(irRightAvg);
 }
 
 
@@ -265,12 +265,12 @@ void updateSonar() {
   srRightAvg =  sonarRt.ping_in(); //right sonara in inches
   delay(50);
   srLeftAvg = sonarLt.ping_in(); //left sonar in inches
-  //  Serial.print("lt snr:\t");
-  //  Serial.print(srLeftAvg);
-  //  Serial.print(" in\t");
-  //  Serial.print("rt snr:\t");
-  //  Serial.print(srRightAvg);
-  //  Serial.println(" in");
+    Serial.print("lt snr:\t");
+    Serial.print(srLeftAvg);
+    Serial.print(" in\t");
+    Serial.print("rt snr:\t");
+    Serial.print(srRightAvg);
+    Serial.println(" in");
 }
 
 //runToStop() is a function to run the individual motors without blocking
@@ -290,4 +290,3 @@ void runToStop() {
     if ((state & 0b11) == 0 ) runNow = 0;
   }
 }
-
