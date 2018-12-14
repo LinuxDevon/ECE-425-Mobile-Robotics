@@ -171,7 +171,7 @@ void setup() {
 }
 
 void loop() {
-  forward(10, 6);
+  forward(24, 6);
   delay(5000);
   reverse(24, 6);
   delay(5000);
@@ -181,9 +181,11 @@ void loop() {
 
 void obsRoutine() {
   updateSensors();
-  if (((srRightAvg < snrThresh && srRightAvg > minThresh)
-       || (srLeftAvg < snrThresh && srLeftAvg > minThresh)) 
-       || (irFrontAvg > irThresh)     // check front ir
+//  if (((srRightAvg < snrThresh && srRightAvg > minThresh)
+//       || (srLeftAvg < snrThresh && srLeftAvg > minThresh)) 
+//       || (irFrontAvg > irThresh)     // check front ir
+//       || (irRearAvg > irThresh)) {   // check rear ir
+  if ((irFrontAvg > irThresh)     // check front ir
        || (irRearAvg > irThresh)) {   // check rear ir
 //    Serial.println("obstacle detected: stop Robot");
     //    Serial.print("f:\t"); Serial.print(irFrontAvg); Serial.print("\t");
@@ -373,7 +375,7 @@ void runToStop() {
 //  stepperRight.setMaxSpeed(max_spd);
 //  stepperLeft.setMaxSpeed(max_spd);
   while (runNow) {
-//    Serial.println(isObstacle);
+    Serial.println(isObstacle);
     if (!isObstacle) {
       stepperRight.setMaxSpeed(rightSpeed);
       stepperLeft.setMaxSpeed(leftSpeed);
