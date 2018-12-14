@@ -171,10 +171,10 @@ void setup() {
 }
 
 void loop() {
-  forward(15, 6);
-  delay(1000);
-  reverse(15, 6);
-  delay(1000);
+  forward(10, 6);
+  delay(5000);
+  reverse(24, 6);
+  delay(5000);
 }
 
 //obstacle avoidance routine based upon timer interrupt
@@ -375,8 +375,8 @@ void runToStop() {
   while (runNow) {
 //    Serial.println(isObstacle);
     if (!isObstacle) {
-      stepperRight.setSpeed(rightSpeed);
-      stepperLeft.setSpeed(leftSpeed);
+      stepperRight.setMaxSpeed(rightSpeed);
+      stepperLeft.setMaxSpeed(leftSpeed);
       stepperRight.moveTo(rightDistance);
       stepperLeft.moveTo(leftDistance);
     } else {
