@@ -171,10 +171,11 @@ void setup() {
 }
 
 void loop() {
-  forward(24, 6);
-  delay(5000);
-  reverse(24, 6);
-  delay(5000);
+//  forward(12,12);
+//  delay(5000);
+//  reverse(12,12);
+//  delay(5000);
+  randomWander();
 }
 
 //obstacle avoidance routine based upon timer interrupt
@@ -203,6 +204,51 @@ void obsRoutine() {
 //    Serial.println("no obstacle detected");
     isObstacle = false;
   }
+}
+
+void randomWander() {
+  long rightDSign = random(1,1000);
+  if(rightDSign % 2 == 1) {
+    rightDSign = -1;
+  } else {
+    rightDSign = 1;
+  }
+  
+  long leftDSign = random(1,1000);
+  if(leftDSign % 2 == 1) {
+    leftDSign = -1;
+  } else {
+    leftDSign = 1;
+  }
+  
+  long rightSSign = random(1,1000);
+  if(rightSSign % 2 == 1) {
+    rightSSign = -1;
+  } else {
+    rightSSign = 1;
+  }
+  
+  long leftSSign = random(1,1000);
+  if(leftSSign % 2 == 1) {
+    leftSSign = -1;
+  } else {
+    leftSSign = 1;
+  }
+  
+  long rightDistance = rightDSign * random(400,1200);
+  long leftDistance = leftDSign * random(400,1200);
+  long rightSpeed = rightSSign * random(400,1200);
+  long leftSpeed = leftSSign * random(400,1200);
+  
+  stepperRight.setCurrentPosition(0);
+  stepperLeft.setCurrentPosition(0);
+  stepperRight.moveTo(rightDistance);//move distance
+  stepperLeft.moveTo(leftDistance);//move distance
+  stepperRight.setSpeed(rightSpeed);//set speed
+  stepperLeft.setSpeed(leftSpeed);//set speed
+  stepperRight.runSpeedToPosition();//move right motor
+  stepperLeft.runSpeedToPosition();//move left motor
+  runToStop();//run until the robot reaches the target
 }
 
 
