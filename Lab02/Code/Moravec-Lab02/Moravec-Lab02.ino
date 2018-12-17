@@ -62,12 +62,26 @@ MultiStepper steppers;//create instance to control multiple steppers at the same
 #define irRear    A9    //back IR analog pin
 #define irRight   A10   //right IR analog pin
 #define irLeft    A11   //left IR analog pin
-#define snrLeft   8   //front left sonar 
-#define snrRight  9  //front right sonar 
 #define button    A15    //pushbutton 
 
-NewPing sonarLt(snrLeft, snrLeft);//create an instance of the left sonar
-NewPing sonarRt(snrRight, snrRight);//create an instance of the right sonar
+///////////// NEW SONAR CLASSES FOR TIMER 2 INTERRUPT/////////////////
+//define sonar sensor connections
+#define snrLeft   8   //front left sonar 
+#define snrRight  9  //front right sonar 
+#define SONAR_NUM     2         // Number of sensors.
+#define MAX_DISTANCE 200        // Maximum distance (in cm) to ping.
+#define PING_INTERVAL 125        // Milliseconds between sensor pings (29ms is about the min to avoid cross-sensor echo).
+#define FIRST_PING_START 50     // First ping starts at this time in ms, gives time for the Arduino to chill before starting.
+
+unsigned long pingTimer[SONAR_NUM]; // Holds the times when the next ping should happen for each sensor.
+unsigned int cm[SONAR_NUM];         // Where the ping distances are stored.
+uint8_t currentSensor = 0;          // Keeps track of which sensor is active.
+
+NewPing sonar[SONAR_NUM] = {     // Sensor object array.
+  NewPing(snrLeft, snrLeft, MAX_DISTANCE),//create an instance of the left sonar
+  NewPing(snrRight, snrRight, MAX_DISTANCE),//create an instance of the right sonar
+};
+////////////////////////////////////////////////////////////////////
 
 #define irThresh    400 // The IR threshold for presence of an obstacle
 #define snrThresh   7  // The sonar threshold for presence of an obstacle
@@ -137,6 +151,11 @@ bool isObstacle;
 int rightVal, leftVal, srRightInches, srLeftInches;
 
 void setup() {
+  //multipler sonar on timer 2 setup
+  pingTimer[0] = millis() + FIRST_PING_START;           // First ping starts at 75ms, gives time for the Arduino to chill before starting.
+  for (uint8_t i = 1; i < SONAR_NUM; i++)               // Set the starting time for each sensor.
+  pingTimer[i] = pingTimer[i - 1] + PING_INTERVAL;
+    
   //stepper Motor set up
   pinMode(rtStepPin, OUTPUT);//sets pin as output
   pinMode(rtDirPin, OUTPUT);//sets pin as output
@@ -171,23 +190,25 @@ void setup() {
 }
 
 void loop() {
-//  forward(12,12);
-//  delay(5000);
-//  reverse(12,12);
-//  delay(5000);
-  randomWander();
+  forward(12,12);
+  delay(5000);
+  reverse(12,12);
+  delay(5000);
+//  randomWander();
 }
 
 //obstacle avoidance routine based upon timer interrupt
 
 void obsRoutine() {
   updateSensors();
-//  if (((srRightAvg < snrThresh && srRightAvg > minThresh)
-//       || (srLeftAvg < snrThresh && srLeftAvg > minThresh)) 
-//       || (irFrontAvg > irThresh)     // check front ir
-//       || (irRearAvg > irThresh)) {   // check rear ir
-  if ((irFrontAvg > irThresh)     // check front ir
+  if (((srRightAvg < snrThresh && srRightAvg > minThresh)
+       || (srLeftAvg < snrThresh && srLeftAvg > minThresh)) 
+       || (irFrontAvg > irThresh)     // check front ir
        || (irRearAvg > irThresh)) {   // check rear ir
+//  if ((irFrontAvg > irThresh)     // check front ir
+//       || (irRearAvg > irThresh)) {   // check rear ir
+//  if (((srRightAvg < snrThresh && srRightAvg > minThresh) &&
+//       (srLeftAvg < snrThresh && srLeftAvg > minThresh)) ) {
 //    Serial.println("obstacle detected: stop Robot");
     //    Serial.print("f:\t"); Serial.print(irFrontAvg); Serial.print("\t");
     //    Serial.print("b:\t"); Serial.print(irRearAvg); Serial.print("\t");
@@ -372,41 +393,60 @@ void updateIR() {
   the necesary changes for the lab requirements.
 */
 void updateSonar() {
-  
-//  for (int i = 0; i < 5; i++) {
-//    //Activate the right sonar
-//    pinMode(snrRight, OUTPUT); //set the PING pin as an output
-//    digitalWrite(snrRight, LOW); //set the PING pin low first
-//    delayMicroseconds(2);//wait 2 us
-//    digitalWrite(snrRight, HIGH); //trigger sonar by a 2 us HIGH PULSE
-//    delayMicroseconds(5);//wait 5 us
-//    pinMode(snrRight, INPUT);//set pin as input with duration as reception time
-//    rightVal = rightVal + pulseIn(snrRight, HIGH); //measures how long the pin is high
-//    //Activate the left sonar
-//    pinMode(snrLeft, OUTPUT); //set the PING pin as an output
-//    digitalWrite(snrLeft, LOW); //set the PING pin low first
-//    delayMicroseconds(2);
-//    digitalWrite(snrLeft, HIGH); //trigger sonar by a 2 us HIGH PULSE
-//    delayMicroseconds(5);
-//    digitalWrite(snrLeft, LOW); //set pin low first again
-//    pinMode(snrLeft, INPUT);//set pin as input with duration as reception time
-//    leftVal = leftVal + pulseIn(snrLeft, HIGH);
-//  }
-//  rightVal = rightVal / 5; //averages right values
-//  leftVal = leftVal / 5;   //averages left values
-//  srRightInches = .0069 * rightVal; //converts right values to inches
-//  srLeftInches = .007 * leftVal;    //converts left values to inches
-//
-//  srRightAvg = rightVal;
-//  srLeftAvg = leftVal;
-  // print
-//    Serial.print("lt snr:\t");
-//    Serial.print(leftVal);
-//    Serial.print(" in\t");
-//    Serial.print("rt snr:\t");
-//    Serial.print(rightVal);
-//    Serial.println(" in");
+  test_state = !test_state;//LED to test the heartbeat of the timer interrupt routine
+  digitalWrite(enableLED, test_state);  // Toggles the LED to let you know the timer is working
+  for (uint8_t i = 0; i < SONAR_NUM; i++) { // Loop through all the sensors.
+    //    Serial.print("\t\t\t");
+    //    Serial.print(millis());
+    //    Serial.print("\t");
+    //    Serial.print(pingTimer[i]);
+    //    Serial.print("\t");
+    //    Serial.println(PING_INTERVAL);
+    if (millis() >= pingTimer[i]) {         // Is it this sensor's time to ping?
+      pingTimer[i] += PING_INTERVAL * SONAR_NUM;  // Set next time this sensor will be pinged.
+      if (i == 0 && currentSensor == SONAR_NUM - 1) {
+        //oneSensorCycle(); // Sensor ping cycle complete, do something with the results.
+        if (cm[0] > 0)
+          srLeftAvg = cm[0];
+        if (cm[1] > 0)
+          srRightAvg = cm[1];
+        Serial.print("lt snr:\t");
+        Serial.print(srLeftAvg);
+        Serial.print(" cm ");
+        Serial.print("\trt snr:\t");
+        Serial.print(srRightAvg);
+        Serial.println(" cm");
+      }
+      sonar[currentSensor].timer_stop();          // Make sure previous timer is canceled before starting a new ping (insurance).
+      currentSensor = i;                          // Sensor being accessed.
+      cm[currentSensor] = 0;                      // Make distance zero in case there's no ping echo for this sensor.
+      sonar[currentSensor].ping_timer(echoCheck); // Do the ping (processing continues, interrupt will call echoCheck to look for echo).
+    }
+  }
+}
 
+//This function writes to the sonar data if the ping is received
+void echoCheck() { // If ping received, set the sensor distance to array.
+  if (sonar[currentSensor].check_timer())
+    cm[currentSensor] = sonar[currentSensor].ping_result / US_ROUNDTRIP_CM;
+}
+
+//This function prints the sonar data once all sonars have been read
+void oneSensorCycle() { // Sensor ping cycle complete, do something with the results.
+  // The following code would be replaced with your code that does something with the ping results.
+  for (uint8_t i = 0; i < SONAR_NUM; i++) {
+    //Serial.print(i);
+    //Serial.print(" = ");
+    //Serial.print(cm[i]);
+    //Serial.print(" cm\t");
+  }
+  srLeftAvg = cm[0];
+  srRightAvg = cm[1];
+  //  Serial.print("Left Sonar = ");
+  //  Serial.print(srLeftAvg);
+  //  Serial.print("\t\tRight Sonar = ");
+  //  Serial.print(srRightAvg);
+  //  Serial.println();
 }
 
 //runToStop() is a function to run the individual motors without blocking
