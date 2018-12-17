@@ -181,9 +181,12 @@ void loop() {
 
 void obsRoutine() {
   updateSensors();
-  if (((srRightAvg < snrThresh && srRightAvg > minThresh)
-       || (srLeftAvg < snrThresh && srLeftAvg > minThresh)) 
-       || (irFrontAvg > irThresh)     // check front ir
+//  if (((srRightAvg < snrThresh && srRightAvg > minThresh)
+//       || (srLeftAvg < snrThresh && srLeftAvg > minThresh)) 
+//       || (irFrontAvg > irThresh)     // check front ir
+//       || (irRearAvg > irThresh)) {   // check rear ir
+
+  if ((irFrontAvg > irThresh)     // check front ir
        || (irRearAvg > irThresh)) {   // check rear ir
 //    Serial.println("obstacle detected: stop Robot");
     //    Serial.print("f:\t"); Serial.print(irFrontAvg); Serial.print("\t");
@@ -364,22 +367,30 @@ void updateSonar() {
 //runToStop() is a function to run the individual motors without blocking
 void runToStop() {
   int runNow = 1;
+  bool reload = false;
   long leftDistance = stepperLeft.targetPosition();
   long rightDistance = stepperRight.targetPosition();
 
+  long distanceLeftToGo = leftDistance;
+  long distanceRightToGo = rightDistance;
+  
   float leftSpeed = stepperLeft.speed();
   float rightSpeed = stepperRight.speed();
     
-//  stepperRight.setMaxSpeed(max_spd);
-//  stepperLeft.setMaxSpeed(max_spd);
+  stepperRight.setMaxSpeed(rightSpeed);
+  stepperLeft.setMaxSpeed(leftSpeed);
   while (runNow) {
 //    Serial.println(isObstacle);
-    if (!isObstacle) {
+    if (!isObstacle && reload) {
       stepperRight.setMaxSpeed(rightSpeed);
       stepperLeft.setMaxSpeed(leftSpeed);
-      stepperRight.moveTo(rightDistance);
-      stepperLeft.moveTo(leftDistance);
+      stepperRight.move(distanceRightToGo);
+      stepperLeft.move(distanceLeftToGo);
+      reload = false;
     } else {
+      distanceLeftToGo = stepperLeft.distanceToGo();
+      distanceRightToGo = stepperRight.distanceToGo();
+      reload = true;
       stepperRight.stop();
       stepperLeft.stop();
     }
