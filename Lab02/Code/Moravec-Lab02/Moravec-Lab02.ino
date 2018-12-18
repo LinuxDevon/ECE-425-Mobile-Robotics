@@ -149,6 +149,7 @@ byte state = 0;   //state to hold robot states and motor motion
 
 bool isObstacle;
 int rightVal, leftVal, srRightInches, srLeftInches;
+bool freezeAtObstacle;
 
 void setup() {
   //multipler sonar on timer 2 setup
@@ -178,6 +179,7 @@ void setup() {
   digitalWrite(enableLED, HIGH);//turn on enable LED
   
   isObstacle = false; // assume no obstacle starting
+  freezeAtObstacle = true; //robot will freeze at obstacles by default
    
   //Timer Interrupt Set Up
   Timer1.initialize(timer_int);         // initialize timer1, and set a 1/2 second period
@@ -190,23 +192,23 @@ void setup() {
 }
 
 void loop() {
-  forward(12,12);
-  delay(5000);
-  reverse(12,12);
-  delay(5000);
+//  forward(12,12);
+//  delay(5000);
+//  reverse(12,12);
+//  delay(5000);
 //  randomWander();
+  freezeAtObstacle = false;
+  shyKid();
+//  freezeAtObstacle = true;
 }
 
 //obstacle avoidance routine based upon timer interrupt
 
 void obsRoutine() {
   updateSensors();
-//  if (((srRightAvg < snrThresh && srRightAvg > minThresh)
-//       || (srLeftAvg < snrThresh && srLeftAvg > minThresh)) 
-//       || (irFrontAvg > irThresh)     // check front ir
-//       || (irRearAvg > irThresh)) {   // check rear ir
-
-  if ((irFrontAvg > irThresh)     // check front ir
+  if (((srRightAvg < snrThresh && srRightAvg > minThresh)
+       || (srLeftAvg < snrThresh && srLeftAvg > minThresh)) 
+       || (irFrontAvg > irThresh)     // check front ir
        || (irRearAvg > irThresh)) {   // check rear ir
 //  if ((irFrontAvg > irThresh)     // check front ir
 //       || (irRearAvg > irThresh)) {   // check rear ir
@@ -219,8 +221,10 @@ void obsRoutine() {
     //    Serial.print("r:\t"); Serial.print(irRightAvg); Serial.print("\t");
     //    Serial.print("lt snr:\t"); Serial.print(srLeftAvg); Serial.print("\t");
     //    Serial.print("rt snr:\t"); Serial.print(srRightAvg); Serial.println("\t");
-    isObstacle = true;
-    stop();//stop the robot
+    if(freezeAtObstacle == true) {
+      isObstacle = true;
+      stop();//stop the robot
+    }
   }
   else {
     bitSet(state, movingR);//set right motor moving
@@ -228,6 +232,71 @@ void obsRoutine() {
 //    Serial.println("no obstacle detected");
     isObstacle = false;
   }
+}
+
+void shyKid() {
+  int forward = 0;
+  int backward = 0;
+  int left = 0;
+  int right = 0;
+  
+  if (irRearAvg > 100) {
+    forward = irRearAvg * 3;
+//    Serial.println(forward);
+//    Serial.println(irRearAvg);
+  }
+
+  if (irFrontAvg > 100) {
+    backward = irFrontAvg * 3;
+//    Serial.println(backward);
+  }
+
+  if (irRightAvg > 300) {
+    left = irRightAvg * 3;
+//    Serial.println(left);
+  }
+
+  if (irLeftAvg > 300) {
+    right = irLeftAvg * 3;
+//    Serial.println(right);
+  }
+
+//  Serial.println(irRearAvg);
+//  Serial.println(irFrontAvg);
+//  Serial.println(irRightAvg);
+//  Serial.println(irLeftAvg);
+
+//  Serial.println(forward);
+//  Serial.println(backward);
+//  Serial.println(left);
+//  Serial.println(right);
+
+  int rightWSpeed = forward - backward + left - right;
+  int leftWSpeed = forward - backward - left + right;
+//  Serial.println(rightWSpeed);
+//  Serial.println(leftWSpeed);
+
+  int rightD = 200;
+  if(rightWSpeed < 0) {
+    rightD = -rightD;
+  }
+
+  int leftD = 200;
+  if(leftWSpeed < 0) {
+    leftD = -leftD;
+  }
+
+  stepperRight.setCurrentPosition(0);
+  stepperLeft.setCurrentPosition(0);
+  stepperRight.moveTo(rightD);//move distance
+  stepperLeft.moveTo(leftD);//move distance
+  stepperRight.setSpeed(rightWSpeed);//set speed
+  stepperLeft.setSpeed(leftWSpeed);//set speed
+  stepperRight.runSpeedToPosition();//move right motor
+  stepperLeft.runSpeedToPosition();//move left motor
+//  Serial.print(forward);
+  runToStop();//run until the robot reaches the target
+//  Serial.print(forward);
 }
 
 void randomWander() {
@@ -369,7 +438,7 @@ void updateSensors() {
   test_state = !test_state;//LED to test the heartbeat of the timer interrupt routine
   digitalWrite(enableLED, test_state);  // Toggles the LED to let you know the timer is working
   updateIR();     //update IR readings and update flag variable and state machine
-  updateSonar();  //update Sonar readings and update flag variable and state machine
+//  updateSonar();  //update Sonar readings and update flag variable and state machine
 }
 
 /*
@@ -455,30 +524,22 @@ void oneSensorCycle() { // Sensor ping cycle complete, do something with the res
 //runToStop() is a function to run the individual motors without blocking
 void runToStop() {
   int runNow = 1;
-  bool reload = false;
   long leftDistance = stepperLeft.targetPosition();
   long rightDistance = stepperRight.targetPosition();
 
-  long distanceLeftToGo = leftDistance;
-  long distanceRightToGo = rightDistance;
-  
   float leftSpeed = stepperLeft.speed();
   float rightSpeed = stepperRight.speed();
     
-  stepperRight.setMaxSpeed(rightSpeed);
-  stepperLeft.setMaxSpeed(leftSpeed);
-  while (runNow) {
+//  stepperRight.setMaxSpeed(max_spd);
+//  stepperLeft.setMaxSpeed(max_spd);
+  while (runNow && (leftSpeed != 0 || rightSpeed !=0)) {
 //    Serial.println(isObstacle);
-    if (!isObstacle && reload) {
+    if (!isObstacle) {
       stepperRight.setMaxSpeed(rightSpeed);
       stepperLeft.setMaxSpeed(leftSpeed);
-      stepperRight.move(distanceRightToGo);
-      stepperLeft.move(distanceLeftToGo);
-      reload = false;
+      stepperRight.moveTo(rightDistance);
+      stepperLeft.moveTo(leftDistance);
     } else {
-      distanceLeftToGo = stepperLeft.distanceToGo();
-      distanceRightToGo = stepperRight.distanceToGo();
-      reload = true;
       stepperRight.stop();
       stepperLeft.stop();
     }
