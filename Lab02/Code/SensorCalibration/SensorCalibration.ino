@@ -61,21 +61,27 @@ void setup(void) {
 }
 
 void loop(void) {
-//  readIR();
-  readSonar();
+  readIR();
+//  readSonar();
 }
 
 
 void readIR(void) {
   long value = 0;
+  long inches = 0;
   
-  for (int i = 0; i < 499; i++) {
+  for (int i = 0; i < 9; i++) {
     value = value + analogRead(irRight);
   }
-  value = value / 500;
+  value = value / 10;
+  
+//  inches = (1111/(value+16))-1; //front
+//  inches = (1111/(value+20))-1; //rear
+//  inches = (285714/(value+2257))-103; //left
+  inches = (285714/(value+2600))-90; //right
 
-  Serial.print("IR Value: ");
-  Serial.println(value);
+  Serial.print("IR Inches: ");
+  Serial.println(inches);
 }
 
 void readSonar(void) {
