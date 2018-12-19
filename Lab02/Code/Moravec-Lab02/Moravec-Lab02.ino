@@ -83,8 +83,8 @@ NewPing sonar[SONAR_NUM] = {     // Sensor object array.
 };
 ////////////////////////////////////////////////////////////////////
 
-#define irThresh    400 // The IR threshold for presence of an obstacle
-#define snrThresh   7  // The sonar threshold for presence of an obstacle
+#define irThresh    6 // The IR threshold for presence of an obstacle
+#define snrThresh   6  // The sonar threshold for presence of an obstacle
 #define minThresh   0   // The sonar minimum threshold to filter out noise
 #define stopThresh  150 // If the robot has been stopped for this threshold move
 
@@ -134,6 +134,8 @@ byte state = 0;   //state to hold robot states and motor motion
 #define LEFT 0
 #define RIGHT 1
 #define Pi 3.14159265358979
+
+#define DETECT_DIST 6
 
 #define REST_DELAY 500        // half second delay
 #define ONE_SECOND 1000       // one second delay
@@ -196,8 +198,9 @@ void loop() {
 //  delay(5000);
 //  reverse(12,12);
 //  delay(5000);
-//  randomWander();
   freezeAtObstacle = false;
+//  randomWander();
+//  goToGoal(36,36);
   shyKid();
 //  freezeAtObstacle = true;
 }
@@ -206,12 +209,12 @@ void loop() {
 
 void obsRoutine() {
   updateSensors();
-  if (((srRightAvg < snrThresh && srRightAvg > minThresh)
-       || (srLeftAvg < snrThresh && srLeftAvg > minThresh)) 
-       || (irFrontAvg > irThresh)     // check front ir
-       || (irRearAvg > irThresh)) {   // check rear ir
-//  if ((irFrontAvg > irThresh)     // check front ir
-//       || (irRearAvg > irThresh)) {   // check rear ir
+//  if (((srRightAvg > snrThresh && srRightAvg > minThresh)
+//       || (srLeftAvg < snrThresh && srLeftAvg > minThresh)) 
+//       || (irFrontAvg < irThresh)     // check front ir
+//       || (irRearAvg < irThresh)) {   // check rear ir
+  if ((irFrontAvg < irThresh)     // check front ir
+       || (irRearAvg < irThresh)) {   // check rear ir
 //  if (((srRightAvg < snrThresh && srRightAvg > minThresh) &&
 //       (srLeftAvg < snrThresh && srLeftAvg > minThresh)) ) {
 //    Serial.println("obstacle detected: stop Robot");
@@ -240,24 +243,24 @@ void shyKid() {
   int left = 0;
   int right = 0;
   
-  if (irRearAvg > 100) {
-    forward = irRearAvg * 3;
+  if (irRearAvg < DETECT_DIST) {
+    forward = 10000/irRearAvg;
 //    Serial.println(forward);
 //    Serial.println(irRearAvg);
   }
 
-  if (irFrontAvg > 100) {
-    backward = irFrontAvg * 3;
+  if (irFrontAvg < DETECT_DIST) {
+    backward = 10000/irFrontAvg;
 //    Serial.println(backward);
   }
 
-  if (irRightAvg > 300) {
-    left = irRightAvg * 3;
+  if (irRightAvg < DETECT_DIST) {
+    left = 10000/irRightAvg;
 //    Serial.println(left);
   }
 
-  if (irLeftAvg > 300) {
-    right = irLeftAvg * 3;
+  if (irLeftAvg < DETECT_DIST) {
+    right = 10000/irLeftAvg;
 //    Serial.println(right);
   }
 
@@ -299,7 +302,15 @@ void shyKid() {
 //  Serial.print(forward);
 }
 
+void checkShyKid() {
+  while(irRearAvg < DETECT_DIST || irFrontAvg < DETECT_DIST || irRightAvg < DETECT_DIST || irLeftAvg < DETECT_DIST) {
+    shyKid();
+  }
+}
+
 void randomWander() {
+   checkShyKid();
+  
   long rightDSign = random(1,1000);
   if(rightDSign % 2 == 1) {
     rightDSign = -1;
@@ -358,6 +369,8 @@ void randomWander() {
   Return: nothing
 */
 void forward(long inches, long inputSpeed) {
+  checkShyKid();
+  
   long distance = inches * TICKS_FOR_FULL_WHEEL_SPIN/INCHES_FOR_FULL_WHEEL_SPIN;
   long tickSpeed = inputSpeed * TICKS_FOR_FULL_WHEEL_SPIN/INCHES_FOR_FULL_WHEEL_SPIN;
 
@@ -423,9 +436,110 @@ void turnRight(int rot) {
   steppers.runSpeedToPosition(); // Blocks until all are in position
 }
 
+/*
+  Description: 
+    Pivot keeps one wheel stationary and the other wheel spins until the desired angle.
+
+  Input: 
+    direction - It can be left or right where left = 0, right = 1
+    angle - the angle in degrees to turn
+    inputSpeed - angular speed (degrees/s)
+  
+  Return: nothing
+*/
+void pivot(int direction, long angle, long inputSpeed) {
+  checkShyKid();
+  
+  long ticks = (angle * 2 * FULL_CIRCLE_TICKS_COUNT)/FULL_SPIN;//FULL_CIRCLE_TICKS_COUNT was set for spin(), so we multiply it by 2 to work here
+  long tickSpeed = (inputSpeed * 2 * FULL_CIRCLE_TICKS_COUNT)/FULL_SPIN;
+  if(direction == LEFT) {
+    stepperRight.setMaxSpeed(tickSpeed);//set right motor speed
+    stepperRight.move(ticks);//move distance
+    stepperRight.runSpeedToPosition();//set right motor speed
+  } else if(direction == RIGHT) {
+    stepperLeft.setMaxSpeed(tickSpeed);//set left motor speed
+    stepperLeft.move(ticks);//move distance
+    stepperLeft.runSpeedToPosition();//set left motor speed
+  }
+  runToStop();
+}
+
 void stop() {
   stepperRight.stop();
   stepperLeft.stop();
+}
+
+/*
+  Description: 
+    Moves the robot to face the given angle by calling pivot. 
+
+  Input: 
+    angle - the angle in degrees to turn. 
+  
+  Return: nothing
+*/
+void goToAngle(int angle) {
+  checkShyKid();
+  
+  digitalWrite(GREEN_LED, HIGH);  // turn on the green led for this function
+ 
+  if(angle > 0) {
+    pivot(LEFT, angle, 90);//90 sets it to 90 degrees per second
+  } else  if (angle < 0) {
+    pivot(RIGHT, -angle, 90);
+  }
+
+  digitalWrite(GREEN_LED, LOW); // turn off leds
+}
+
+/*
+  Description: 
+    Calculates the angle and length to move the robot to the given position.
+    It calls goToAngle based on the calculated angle then finally calls forward()
+    to move the correct calculated distance.
+
+  Input: 
+    x - is the x position where positive x is in front of the robot and negative is backwards
+    y - is the y position where positive y is to the left and negative is the right.
+  
+  Return: nothing
+*/
+void goToGoal(double x, double y) {
+  checkShyKid();
+  
+  digitalWrite(GREEN_LED, HIGH);  // turn on the green and yellow led for this function
+  digitalWrite(YELLOW_LED, HIGH); 
+   
+  int angle;
+  if(x > 0 && y > 0) {        // correctly calculates if left front quadrant
+    angle = atan2(y,x)*180/Pi;
+  } else if(x > 0 && y < 0) {   // correctly calculates if right front quadrant
+    angle = atan2(abs(y),x)*180/Pi;
+    angle = -angle;
+  } else if(x < 0 && y > 0) {   // correctly calculates if left rear quadrant
+    angle = atan2(y,abs(x))*180/Pi;
+    angle = 180 - angle;
+  } else if(x < 0 && y < 0) {   // correctly calculates if right rear quadrant
+    angle = atan2(abs(y),abs(x))*180/Pi;
+    angle = angle + 180;
+  } else if(x == 0 && y > 0) {    // directly right
+    angle = RIGHT_ANGLE;
+  } else if(x == 0 && y < 0) {    // directly left
+    angle = -RIGHT_ANGLE;
+  } else if(x > 0 && y == 0) {    // straight ahead
+    angle = 0;
+  } else if(x < 0 && y == 0) {    // directly behind
+    angle = 180;
+  } else {              // dont' move because both x,y are 0    
+    angle = 0;
+  }
+  goToAngle(angle);   // turn to the calculated angle
+  
+  long distance = sqrt(x*x + y*y);  // calculates the distance to travel at the given angle
+  forward(distance, 12);//12 sets the speed to 12 inches per second
+
+  digitalWrite(GREEN_LED, LOW);  // turn off leds
+  digitalWrite(YELLOW_LED, LOW);  
 }
 
 /*
@@ -451,6 +565,27 @@ void updateIR() {
   irRearAvg = analogRead(irRear);
   irLeftAvg = analogRead(irLeft);
   irRightAvg = analogRead(irRight);
+
+  irFrontAvg = (1111/(irFrontAvg+16))-1;
+  irRearAvg = (1111/(irRearAvg+20))-1;
+  irLeftAvg = (285714/(irLeftAvg+2257))-103;
+  irRightAvg = (286714/(irRightAvg+2600))-90;
+
+  if(irFrontAvg <= 0) {
+    irFrontAvg = 1;
+  }
+
+  if(irRearAvg <= 0) {
+    irRearAvg = 1;
+  }
+
+  if(irLeftAvg <= 0) {
+    irLeftAvg = 1;
+  }
+
+  if(irRightAvg <= 0) {
+    irRightAvg = 1;
+  }
   //  print IR data
 //      Serial.println("frontIR\tbackIR\tleftIR\trightIR");
 //      Serial.print(irFrontAvg); Serial.print("\t");
@@ -482,12 +617,12 @@ void updateSonar() {
           srLeftAvg = cm[0];
         if (cm[1] > 0)
           srRightAvg = cm[1];
-        Serial.print("lt snr:\t");
-        Serial.print(srLeftAvg);
-        Serial.print(" cm ");
-        Serial.print("\trt snr:\t");
-        Serial.print(srRightAvg);
-        Serial.println(" cm");
+//        Serial.print("lt snr:\t");
+//        Serial.print(srLeftAvg);
+//        Serial.print(" cm ");
+//        Serial.print("\trt snr:\t");
+//        Serial.print(srRightAvg);
+//        Serial.println(" cm");
       }
       sonar[currentSensor].timer_stop();          // Make sure previous timer is canceled before starting a new ping (insurance).
       currentSensor = i;                          // Sensor being accessed.
@@ -495,6 +630,8 @@ void updateSonar() {
       sonar[currentSensor].ping_timer(echoCheck); // Do the ping (processing continues, interrupt will call echoCheck to look for echo).
     }
   }
+  srLeftAvg = (-479616/(srLeftAvg-9520))-50;
+  srRightAvg = (-568181/(srRightAvg-11136))-50;
 }
 
 //This function writes to the sonar data if the ping is received
