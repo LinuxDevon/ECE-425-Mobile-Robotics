@@ -61,8 +61,8 @@ void setup(void) {
 }
 
 void loop(void) {
-  readIR();
-//  readSonar();
+//  readIR();
+  readSonar();
 }
 
 
@@ -87,6 +87,7 @@ void readIR(void) {
 void readSonar(void) {
   long valueLeft = 0;
   long valueRight = 0;
+  long inchesLeft = 0, inchesRight = 0;
 
   for(int i = 0; i < 99; i++) {
     pinMode(snrLeft, OUTPUT);
@@ -112,9 +113,12 @@ void readSonar(void) {
 
   valueRight = valueRight / 100;
   valueLeft = valueLeft / 100;
+
+  inchesRight = (-568181/(valueRight-11136))-50; //right
+  inchesLeft = (-479616/(valueLeft-9520))-50; //left
   
   Serial.print("Sonar Left: ");
-  Serial.print(valueLeft);
+  Serial.print(inchesLeft);
   Serial.print("    Sonar Right: ");
-  Serial.println(valueRight);
+  Serial.println(inchesRight);
 }

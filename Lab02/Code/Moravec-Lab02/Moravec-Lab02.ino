@@ -242,7 +242,9 @@ void shyKid() {
   int backward = 0;
   int left = 0;
   int right = 0;
-  
+  int leftD = 0;
+  int rightD = 0;
+    
   if (irRearAvg < DETECT_DIST) {
     forward = 10000/irRearAvg;
 //    Serial.println(forward);
@@ -279,12 +281,16 @@ void shyKid() {
 //  Serial.println(rightWSpeed);
 //  Serial.println(leftWSpeed);
 
-  int rightD = 200;
+  if (irLeftAvg < DETECT_DIST || irRightAvg < DETECT_DIST || irFrontAvg < DETECT_DIST || irRearAvg < DETECT_DIST) {
+    rightD = 200;
+    leftD = 200;
+  }
+  
   if(rightWSpeed < 0) {
     rightD = -rightD;
   }
 
-  int leftD = 200;
+  
   if(leftWSpeed < 0) {
     leftD = -leftD;
   }
@@ -666,11 +672,19 @@ void runToStop() {
 
   float leftSpeed = stepperLeft.speed();
   float rightSpeed = stepperRight.speed();
+
+  int runLeft = 0;
+  int runRight = 0;
     
 //  stepperRight.setMaxSpeed(max_spd);
 //  stepperLeft.setMaxSpeed(max_spd);
-  while (runNow && (leftSpeed != 0 || rightSpeed !=0)) {
+  while (runNow && (leftSpeed != 0 && rightSpeed !=0)) {
+//    Serial.print("obstacle: ");
 //    Serial.println(isObstacle);
+//    Serial.print("speedRight: ");
+//    Serial.println(rightSpeed);
+//    Serial.print("speedLeft: ");
+//    Serial.println(leftSpeed);
     if (!isObstacle) {
       stepperRight.setMaxSpeed(rightSpeed);
       stepperLeft.setMaxSpeed(leftSpeed);
@@ -680,13 +694,17 @@ void runToStop() {
       stepperRight.stop();
       stepperLeft.stop();
     }
-    
-    if (!stepperRight.run() && !isObstacle) {
+    runRight = stepperRight.run();
+    if (!runRight && !isObstacle) {
       bitClear(state, movingR);  // clear bit for right motor moving
     }
-    if (!stepperLeft.run() && !isObstacle) {
+    runLeft = stepperLeft.run();
+    if (!runLeft && !isObstacle) {
       bitClear(state, movingL);   // clear bit for left motor moving
     }
+
     if ((state & 0b11) == 0 ) runNow = 0;
   }
+//  Serial.println("Done");
+  
 }
