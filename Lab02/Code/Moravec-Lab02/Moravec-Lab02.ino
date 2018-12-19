@@ -191,6 +191,12 @@ void setup() {
   Serial.begin(baud_rate);//start serial communication in order to debug the software while coding
   Serial.println("Timer Interrupt to Update Sensors......");
   delay(2500); //seconds before the robot moves
+
+  // LED SETUP
+  // set as outputs
+  pinMode(RED_LED, OUTPUT);
+  pinMode(GREEN_LED, OUTPUT);
+  pinMode(YELLOW_LED, OUTPUT);
 }
 
 void loop() {
@@ -200,9 +206,10 @@ void loop() {
 //  delay(5000);
   freezeAtObstacle = false;
 //  randomWander();
-//  goToGoal(36,36);
-  shyKid();
+  goToGoal(36,36);
+//  shyKid();
 //  freezeAtObstacle = true;
+  delay(5000);
 }
 
 //obstacle avoidance routine based upon timer interrupt
@@ -244,6 +251,8 @@ void shyKid() {
   int right = 0;
   int leftD = 0;
   int rightD = 0;
+
+  digitalWrite(YELLOW_LED, HIGH);  // turn on the yellow led for this function
     
   if (irRearAvg < DETECT_DIST) {
     forward = 10000/irRearAvg;
@@ -275,7 +284,39 @@ void shyKid() {
 //  Serial.println(backward);
 //  Serial.println(left);
 //  Serial.println(right);
-
+  
+  if(irRightAvg < DETECT_DIST && irLeftAvg < DETECT_DIST && irRearAvg > DETECT_DIST && irFrontAvg > DETECT_DIST) {
+    left = 0;
+    right = 0;
+    forward = 800;
+  } else if(irRightAvg > DETECT_DIST && irLeftAvg > DETECT_DIST && irRearAvg < DETECT_DIST && irFrontAvg < DETECT_DIST) {
+    spin(1,90,45);
+    left = 0;
+    right = 0;
+    forward = 0;
+    backward = 0;
+  } else if(irRightAvg < DETECT_DIST && irLeftAvg < DETECT_DIST && (irRearAvg < DETECT_DIST || irFrontAvg < DETECT_DIST)) {
+    if(backward > forward) {
+      spin(1,180,45);
+      forward = 0;
+      backward = 0;
+    }
+    left = 0;
+    right = 0;
+  } else if(irRightAvg > DETECT_DIST && irLeftAvg < DETECT_DIST && irRearAvg < DETECT_DIST && irFrontAvg < DETECT_DIST) {
+    spin(1,90,45);
+    left = 0;
+    right = 0;
+    forward = 0;
+    backward = 0;
+  } else if(irRightAvg < DETECT_DIST && irLeftAvg > DETECT_DIST && irRearAvg < DETECT_DIST && irFrontAvg < DETECT_DIST) {
+    spin(1,-90,45);
+    left = 0;
+    right = 0;
+    forward = 0;
+    backward = 0;
+  }
+  
   int rightWSpeed = forward - backward + left - right;
   int leftWSpeed = forward - backward - left + right;
 //  Serial.println(rightWSpeed);
@@ -306,6 +347,8 @@ void shyKid() {
 //  Serial.print(forward);
   runToStop();//run until the robot reaches the target
 //  Serial.print(forward);
+  
+  digitalWrite(YELLOW_LED, LOW);  // turn off the yellow led
 }
 
 void checkShyKid() {
@@ -316,6 +359,8 @@ void checkShyKid() {
 
 void randomWander() {
    checkShyKid();
+
+   digitalWrite(GREEN_LED, HIGH);  // turn on the green led for this function
   
   long rightDSign = random(1,1000);
   if(rightDSign % 2 == 1) {
@@ -359,6 +404,8 @@ void randomWander() {
   stepperRight.runSpeedToPosition();//move right motor
   stepperLeft.runSpeedToPosition();//move left motor
   runToStop();//run until the robot reaches the target
+
+  digitalWrite(GREEN_LED, LOW);  // turn off the green led
 }
 
 
@@ -376,6 +423,8 @@ void randomWander() {
 */
 void forward(long inches, long inputSpeed) {
   checkShyKid();
+
+  digitalWrite(RED_LED, HIGH);  // turn on the red led for this function
   
   long distance = inches * TICKS_FOR_FULL_WHEEL_SPIN/INCHES_FOR_FULL_WHEEL_SPIN;
   long tickSpeed = inputSpeed * TICKS_FOR_FULL_WHEEL_SPIN/INCHES_FOR_FULL_WHEEL_SPIN;
@@ -391,6 +440,8 @@ void forward(long inches, long inputSpeed) {
   stepperRight.runSpeedToPosition();//move right motor
   stepperLeft.runSpeedToPosition();//move left motor
   runToStop();//run until the robot reaches the target
+
+  digitalWrite(RED_LED, LOW);  // turn off the red led
 }
 
 /*
@@ -444,6 +495,35 @@ void turnRight(int rot) {
 
 /*
   Description: 
+    Spin is similar to pivot but instead turns the wheels at the same speed in opposite
+    directions.
+
+  Input: 
+    direction - It can be left or right where left = 0, right = 1
+    angle - the angle in degrees to turn
+    inputSpeed - angular speed (degrees/s)
+
+  Return: nothing
+*/
+void spin(int direction,long angle, long inputSpeed) {
+  long ticks = (angle * FULL_CIRCLE_TICKS_COUNT)/FULL_SPIN;
+  long tickSpeed = (inputSpeed * FULL_CIRCLE_TICKS_COUNT)/FULL_SPIN;
+  if(direction == LEFT) {
+    stepperRight.moveTo(ticks);//move distance
+    stepperLeft.moveTo(-ticks);//move distance
+  } else if(direction == RIGHT) {
+    stepperRight.moveTo(-ticks);//move distance
+    stepperLeft.moveTo(ticks);//move distance
+  }
+  stepperRight.setSpeed(tickSpeed);//set right motor speed
+  stepperLeft.setSpeed(tickSpeed);//set left motor speed
+  stepperRight.runSpeedToPosition();//set right motor speed
+  stepperLeft.runSpeedToPosition();//set left motor speed
+  runToStop();
+}
+
+/*
+  Description: 
     Pivot keeps one wheel stationary and the other wheel spins until the desired angle.
 
   Input: 
@@ -454,17 +534,17 @@ void turnRight(int rot) {
   Return: nothing
 */
 void pivot(int direction, long angle, long inputSpeed) {
-  checkShyKid();
+//  checkShyKid();
   
   long ticks = (angle * 2 * FULL_CIRCLE_TICKS_COUNT)/FULL_SPIN;//FULL_CIRCLE_TICKS_COUNT was set for spin(), so we multiply it by 2 to work here
   long tickSpeed = (inputSpeed * 2 * FULL_CIRCLE_TICKS_COUNT)/FULL_SPIN;
   if(direction == LEFT) {
-    stepperRight.setMaxSpeed(tickSpeed);//set right motor speed
-    stepperRight.move(ticks);//move distance
+    stepperRight.setSpeed(tickSpeed);//set right motor speed
+    stepperRight.moveTo(ticks);//move distance
     stepperRight.runSpeedToPosition();//set right motor speed
   } else if(direction == RIGHT) {
-    stepperLeft.setMaxSpeed(tickSpeed);//set left motor speed
-    stepperLeft.move(ticks);//move distance
+    stepperLeft.setSpeed(tickSpeed);//set left motor speed
+    stepperLeft.moveTo(ticks);//move distance
     stepperLeft.runSpeedToPosition();//set left motor speed
   }
   runToStop();
@@ -485,9 +565,9 @@ void stop() {
   Return: nothing
 */
 void goToAngle(int angle) {
-  checkShyKid();
+//  checkShyKid();
   
-  digitalWrite(GREEN_LED, HIGH);  // turn on the green led for this function
+//  digitalWrite(GREEN_LED, HIGH);  // turn on the green led for this function
  
   if(angle > 0) {
     pivot(LEFT, angle, 90);//90 sets it to 90 degrees per second
@@ -495,7 +575,7 @@ void goToAngle(int angle) {
     pivot(RIGHT, -angle, 90);
   }
 
-  digitalWrite(GREEN_LED, LOW); // turn off leds
+//  digitalWrite(GREEN_LED, LOW); // turn off leds
 }
 
 /*
@@ -512,7 +592,8 @@ void goToAngle(int angle) {
 */
 void goToGoal(double x, double y) {
   checkShyKid();
-  
+
+  digitalWrite(RED_LED, HIGH);  // turn on the green led for this function
   digitalWrite(GREEN_LED, HIGH);  // turn on the green and yellow led for this function
   digitalWrite(YELLOW_LED, HIGH); 
    
@@ -539,13 +620,14 @@ void goToGoal(double x, double y) {
   } else {              // dont' move because both x,y are 0    
     angle = 0;
   }
-  goToAngle(angle);   // turn to the calculated angle
+//  goToAngle(angle);   // turn to the calculated angle
   
   long distance = sqrt(x*x + y*y);  // calculates the distance to travel at the given angle
   forward(distance, 12);//12 sets the speed to 12 inches per second
 
   digitalWrite(GREEN_LED, LOW);  // turn off leds
   digitalWrite(YELLOW_LED, LOW);  
+  digitalWrite(RED_LED, LOW);
 }
 
 /*
