@@ -209,28 +209,16 @@ void loop() {
   goToGoal(36,36);
 //  shyKid();
 //  freezeAtObstacle = true;
-  delay(5000);
+//  delay (1000);
 }
 
 //obstacle avoidance routine based upon timer interrupt
 
 void obsRoutine() {
   updateSensors();
-//  if (((srRightAvg > snrThresh && srRightAvg > minThresh)
-//       || (srLeftAvg < snrThresh && srLeftAvg > minThresh)) 
-//       || (irFrontAvg < irThresh)     // check front ir
-//       || (irRearAvg < irThresh)) {   // check rear ir
+  
   if ((irFrontAvg < irThresh)     // check front ir
-       || (irRearAvg < irThresh)) {   // check rear ir
-//  if (((srRightAvg < snrThresh && srRightAvg > minThresh) &&
-//       (srLeftAvg < snrThresh && srLeftAvg > minThresh)) ) {
-//    Serial.println("obstacle detected: stop Robot");
-    //    Serial.print("f:\t"); Serial.print(irFrontAvg); Serial.print("\t");
-    //    Serial.print("b:\t"); Serial.print(irRearAvg); Serial.print("\t");
-    //    Serial.print("l:\t"); Serial.print(irLeftAvg); Serial.print("\t");
-    //    Serial.print("r:\t"); Serial.print(irRightAvg); Serial.print("\t");
-    //    Serial.print("lt snr:\t"); Serial.print(srLeftAvg); Serial.print("\t");
-    //    Serial.print("rt snr:\t"); Serial.print(srRightAvg); Serial.println("\t");
+       || (irRearAvg < irThresh)) {   // check rear ir;
     if(freezeAtObstacle == true) {
       isObstacle = true;
       stop();//stop the robot
@@ -239,7 +227,6 @@ void obsRoutine() {
   else {
     bitSet(state, movingR);//set right motor moving
     bitSet(state, movingL);//set left motor moving
-//    Serial.println("no obstacle detected");
     isObstacle = false;
   }
 }
@@ -256,35 +243,20 @@ void shyKid() {
     
   if (irRearAvg < DETECT_DIST) {
     forward = 10000/irRearAvg;
-//    Serial.println(forward);
-//    Serial.println(irRearAvg);
   }
 
   if (irFrontAvg < DETECT_DIST) {
     backward = 10000/irFrontAvg;
-//    Serial.println(backward);
   }
 
   if (irRightAvg < DETECT_DIST) {
     left = 10000/irRightAvg;
-//    Serial.println(left);
   }
 
   if (irLeftAvg < DETECT_DIST) {
     right = 10000/irLeftAvg;
-//    Serial.println(right);
   }
 
-//  Serial.println(irRearAvg);
-//  Serial.println(irFrontAvg);
-//  Serial.println(irRightAvg);
-//  Serial.println(irLeftAvg);
-
-//  Serial.println(forward);
-//  Serial.println(backward);
-//  Serial.println(left);
-//  Serial.println(right);
-  
   if(irRightAvg < DETECT_DIST && irLeftAvg < DETECT_DIST && irRearAvg > DETECT_DIST && irFrontAvg > DETECT_DIST) {
     left = 0;
     right = 0;
@@ -422,7 +394,7 @@ void randomWander() {
   Return: nothing
 */
 void forward(long inches, long inputSpeed) {
-  checkShyKid();
+//  checkShyKid();
 
   digitalWrite(RED_LED, HIGH);  // turn on the red led for this function
   
@@ -432,7 +404,9 @@ void forward(long inches, long inputSpeed) {
   // reset
   stepperRight.setCurrentPosition(0);
   stepperLeft.setCurrentPosition(0);
-  
+
+  stepperRight.setMaxSpeed(tickSpeed);//set right motor speed
+  stepperLeft.setMaxSpeed(tickSpeed);//set left motor speed
   stepperRight.moveTo(distance);//move distance
   stepperLeft.moveTo(distance);//move distance
   stepperRight.setSpeed(tickSpeed);//set speed
@@ -508,6 +482,11 @@ void turnRight(int rot) {
 void spin(int direction,long angle, long inputSpeed) {
   long ticks = (angle * FULL_CIRCLE_TICKS_COUNT)/FULL_SPIN;
   long tickSpeed = (inputSpeed * FULL_CIRCLE_TICKS_COUNT)/FULL_SPIN;
+  stepperRight.setCurrentPosition(0);
+  stepperLeft.setCurrentPosition(0);
+  stepperRight.setMaxSpeed(tickSpeed);//set right motor speed
+  stepperLeft.setMaxSpeed(tickSpeed);//set left motor speed
+  
   if(direction == LEFT) {
     stepperRight.moveTo(ticks);//move distance
     stepperLeft.moveTo(-ticks);//move distance
@@ -515,8 +494,10 @@ void spin(int direction,long angle, long inputSpeed) {
     stepperRight.moveTo(-ticks);//move distance
     stepperLeft.moveTo(ticks);//move distance
   }
+
   stepperRight.setSpeed(tickSpeed);//set right motor speed
   stepperLeft.setSpeed(tickSpeed);//set left motor speed
+  
   stepperRight.runSpeedToPosition();//set right motor speed
   stepperLeft.runSpeedToPosition();//set left motor speed
   runToStop();
@@ -570,9 +551,9 @@ void goToAngle(int angle) {
 //  digitalWrite(GREEN_LED, HIGH);  // turn on the green led for this function
  
   if(angle > 0) {
-    pivot(LEFT, angle, 90);//90 sets it to 90 degrees per second
+    spin(LEFT, angle, 90);//90 sets it to 90 degrees per second
   } else  if (angle < 0) {
-    pivot(RIGHT, -angle, 90);
+    spin(RIGHT, -angle, 90);
   }
 
 //  digitalWrite(GREEN_LED, LOW); // turn off leds
@@ -591,7 +572,7 @@ void goToAngle(int angle) {
   Return: nothing
 */
 void goToGoal(double x, double y) {
-  checkShyKid();
+//  checkShyKid();
 
   digitalWrite(RED_LED, HIGH);  // turn on the green led for this function
   digitalWrite(GREEN_LED, HIGH);  // turn on the green and yellow led for this function
@@ -620,10 +601,12 @@ void goToGoal(double x, double y) {
   } else {              // dont' move because both x,y are 0    
     angle = 0;
   }
-//  goToAngle(angle);   // turn to the calculated angle
-  
+//  Serial.println(angle);
+  goToAngle(angle);   // turn to the calculated angle
+  delay(500);
   long distance = sqrt(x*x + y*y);  // calculates the distance to travel at the given angle
   forward(distance, 12);//12 sets the speed to 12 inches per second
+  delay(500);
 
   digitalWrite(GREEN_LED, LOW);  // turn off leds
   digitalWrite(YELLOW_LED, LOW);  
@@ -772,6 +755,8 @@ void runToStop() {
       stepperLeft.setMaxSpeed(leftSpeed);
       stepperRight.moveTo(rightDistance);
       stepperLeft.moveTo(leftDistance);
+//      stepperRight.setSpeed(rightSpeed);
+//      stepperLeft.setSpeed(leftSpeed);
     } else {
       stepperRight.stop();
       stepperLeft.stop();
