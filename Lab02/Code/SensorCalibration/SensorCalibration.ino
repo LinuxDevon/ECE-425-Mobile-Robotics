@@ -61,7 +61,7 @@ void setup(void) {
 }
 
 void loop(void) {
-//  readIR();
+  readIR();
   readSonar();
 }
 
@@ -69,17 +69,20 @@ void loop(void) {
 void readIR(void) {
   long value = 0;
   long inches = 0;
-  
+
+  //reads and averages values of whichever sensor we are checking
   for (int i = 0; i < 9; i++) {
     value = value + analogRead(irRight);
   }
   value = value / 10;
-  
+
+  // we uncomment whichever sensor we are checking
 //  inches = (1111/(value+16))-1; //front
 //  inches = (1111/(value+20))-1; //rear
 //  inches = (285714/(value+2257))-103; //left
   inches = (285714/(value+2600))-90; //right
 
+  // prints calibrated values for our use
   Serial.print("IR Inches: ");
   Serial.println(inches);
 }
@@ -89,6 +92,7 @@ void readSonar(void) {
   long valueRight = 0;
   long inchesLeft = 0, inchesRight = 0;
 
+  // takes 100 readings from the left sonar sensor
   for(int i = 0; i < 99; i++) {
     pinMode(snrLeft, OUTPUT);
     digitalWrite(snrLeft, LOW);
@@ -100,6 +104,7 @@ void readSonar(void) {
     valueLeft = valueLeft + pulseIn(snrLeft, HIGH);
   }
 
+  // takes 100 readings from the right sonar sensor
   for(int i = 0; i < 99; i++) {
     pinMode(snrRight, OUTPUT);
     digitalWrite(snrRight, LOW);
@@ -111,12 +116,15 @@ void readSonar(void) {
     valueRight = valueRight + pulseIn(snrRight, HIGH);
   }
 
+  // averages sonar data
   valueRight = valueRight / 100;
   valueLeft = valueLeft / 100;
 
+  // calibrates sonar data
   inchesRight = (-568181/(valueRight-11136))-50; //right
   inchesLeft = (-479616/(valueLeft-9520))-50; //left
-  
+
+  // prints calibrated values for our use
   Serial.print("Sonar Left: ");
   Serial.print(inchesLeft);
   Serial.print("    Sonar Right: ");
