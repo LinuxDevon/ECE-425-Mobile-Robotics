@@ -1,8 +1,7 @@
-/*RobotTimerInterrupt.ino
-  Author: Carlotta. A. Berry
-  Date: December 17, 2016
-  This program will test using a timer interrupt to update the IR and sonar data
-  in order  to create an obstacle avoidance beavhior on the robot.
+/*Moravec-Lab02.ino
+  Author: Devon Adair & Hunter LaMantia
+  Date: December 21, 2018
+  This program will make the robot move while avoiding obstacles.
 
   Hardware Connections:
   Stepper Enable Pin 48
@@ -25,8 +24,8 @@
   Back IR     A9
   Right IR    A10
   Left IR     A11
-  Left Sonar  A12
-  Right Sonar A13
+  Left Sonar  8
+  Right Sonar 9
   Pushbutton  A15
 */
 
@@ -140,8 +139,8 @@ byte state = 0;   //state to hold robot states and motor motion
 #define REST_DELAY 500        // half second delay
 #define ONE_SECOND 1000       // one second delay
 #define FULL_SPIN 360       // 360 degrees
-#define TICKS_FOR_FULL_WHEEL_SPIN 800
-#define INCHES_FOR_FULL_WHEEL_SPIN 10.5
+#define TICKS_FOR_FULL_WHEEL_SPIN 800 // ticks in one wheel spin
+#define INCHES_FOR_FULL_WHEEL_SPIN 10.5 // circumference of wheels
 #define RIGHT_ANGLE 90        // 90 degrees
 #define FULL_CIRCLE_TICKS_COUNT 1900 // number of ticks to make a full spin
 
@@ -149,9 +148,12 @@ byte state = 0;   //state to hold robot states and motor motion
 #define GREEN_LED 16
 #define YELLOW_LED 15
 
-bool isObstacle;
-int rightVal, leftVal, srRightInches, srLeftInches;
-bool freezeAtObstacle;
+bool isObstacle; // states if there is an obstacle detected
+int rightVal, leftVal, srRightInches, srLeftInches; // sensor values
+bool dodgeAtObstacle; // sets whether or not obstacle avoidance is turned on (only turned off when testing basic movement functions)
+bool goingToGoal = false; // states whether or not goToGoal() is active (because goToGoal requires different behavior than randomWander)
+bool dodging = false; // states whether or not the robot is currently dodging (prevents dodge() form getting called too often)
+int target; // target location (used in dodge())
 
 void setup() {
   //multipler sonar on timer 2 setup
@@ -181,7 +183,7 @@ void setup() {
   digitalWrite(enableLED, HIGH);//turn on enable LED
   
   isObstacle = false; // assume no obstacle starting
-  freezeAtObstacle = true; //robot will freeze at obstacles by default
+  dodgeAtObstacle = true; //robot will freeze at obstacles by default
    
   //Timer Interrupt Set Up
   Timer1.initialize(timer_int);         // initialize timer1, and set a 1/2 second period
@@ -200,39 +202,49 @@ void setup() {
 }
 
 void loop() {
-//  forward(12,12);
-//  delay(5000);
-//  reverse(12,12);
-//  delay(5000);
-  freezeAtObstacle = false;
-//  randomWander();
-  goToGoal(36,36);
-//  shyKid();
-//  freezeAtObstacle = true;
-//  delay (1000);
+  dodgeAtObstacle = true; // true when calling goToGoal, false otherwise
+//  randomWander(); // randomly wanders
+  goToGoal(36,36); // goes to set locations (currently 36 inches in both directions)
+  delay (10000); // 10 seconds of pause between loops
 }
 
-//obstacle avoidance routine based upon timer interrupt
+/*
+  Description: 
+    Activated on timer interrupt, handles obstacle detection
+
+  Input: nothing
+  
+  Return: nothing
+*/
 
 void obsRoutine() {
-  updateSensors();
+  updateSensors(); // updates all sensors
   
   if ((irFrontAvg < irThresh)     // check front ir
        || (irRearAvg < irThresh)) {   // check rear ir;
-    if(freezeAtObstacle == true) {
-      isObstacle = true;
+    if(dodgeAtObstacle == true) {
+      isObstacle = true; // tells robot that an obstacle has been detected
       stop();//stop the robot
     }
   }
   else {
     bitSet(state, movingR);//set right motor moving
     bitSet(state, movingL);//set left motor moving
-    isObstacle = false;
+    isObstacle = false; // tells robot that there is no obstacle detected
   }
 }
 
+/*
+  Description: 
+    Reads all sensors and makes the robot move away from obstacles.
+
+  Input: nothing
+  
+  Return: nothing
+*/
+
 void shyKid() {
-  int forward = 0;
+  int forward = 0; // initializing variables
   int backward = 0;
   int left = 0;
   int right = 0;
@@ -240,7 +252,8 @@ void shyKid() {
   int rightD = 0;
 
   digitalWrite(YELLOW_LED, HIGH);  // turn on the yellow led for this function
-    
+
+  // checks all sensors and sets forward, backward, left, and right speeds, weighted by proximity to obstacles
   if (irRearAvg < DETECT_DIST) {
     forward = 10000/irRearAvg;
   }
@@ -257,12 +270,14 @@ void shyKid() {
     right = 10000/irLeftAvg;
   }
 
+  // modifies forward, backward, left, and right weights during special cases
+  // special cases involve two or three sensors being activated at once
   if(irRightAvg < DETECT_DIST && irLeftAvg < DETECT_DIST && irRearAvg > DETECT_DIST && irFrontAvg > DETECT_DIST) {
     left = 0;
     right = 0;
     forward = 800;
   } else if(irRightAvg > DETECT_DIST && irLeftAvg > DETECT_DIST && irRearAvg < DETECT_DIST && irFrontAvg < DETECT_DIST) {
-    spin(1,90,45);
+    spin(1,RIGHT_ANGLE,45);
     left = 0;
     right = 0;
     forward = 0;
@@ -276,38 +291,34 @@ void shyKid() {
     left = 0;
     right = 0;
   } else if(irRightAvg > DETECT_DIST && irLeftAvg < DETECT_DIST && irRearAvg < DETECT_DIST && irFrontAvg < DETECT_DIST) {
-    spin(1,90,45);
+    spin(1,RIGHT_ANGLE,45);
     left = 0;
     right = 0;
     forward = 0;
     backward = 0;
   } else if(irRightAvg < DETECT_DIST && irLeftAvg > DETECT_DIST && irRearAvg < DETECT_DIST && irFrontAvg < DETECT_DIST) {
-    spin(1,-90,45);
+    spin(1,-RIGHT_ANGLE,45);
     left = 0;
     right = 0;
     forward = 0;
     backward = 0;
   }
-  
+
+  // sets motor speeds and distances based on weighted values from above
   int rightWSpeed = forward - backward + left - right;
   int leftWSpeed = forward - backward - left + right;
-//  Serial.println(rightWSpeed);
-//  Serial.println(leftWSpeed);
-
   if (irLeftAvg < DETECT_DIST || irRightAvg < DETECT_DIST || irFrontAvg < DETECT_DIST || irRearAvg < DETECT_DIST) {
     rightD = 200;
     leftD = 200;
   }
-  
   if(rightWSpeed < 0) {
     rightD = -rightD;
   }
-
-  
   if(leftWSpeed < 0) {
     leftD = -leftD;
   }
-
+  
+  // puts above values into motor functions
   stepperRight.setCurrentPosition(0);
   stepperLeft.setCurrentPosition(0);
   stepperRight.moveTo(rightD);//move distance
@@ -316,24 +327,89 @@ void shyKid() {
   stepperLeft.setSpeed(leftWSpeed);//set speed
   stepperRight.runSpeedToPosition();//move right motor
   stepperLeft.runSpeedToPosition();//move left motor
-//  Serial.print(forward);
   runToStop();//run until the robot reaches the target
-//  Serial.print(forward);
   
   digitalWrite(YELLOW_LED, LOW);  // turn off the yellow led
 }
 
+/*
+  Description: 
+    Determines if shyKid() needs to be called
+
+  Input: nothing
+  
+  Return: nothing
+*/
+
 void checkShyKid() {
   while(irRearAvg < DETECT_DIST || irFrontAvg < DETECT_DIST || irRightAvg < DETECT_DIST || irLeftAvg < DETECT_DIST) {
-    shyKid();
+    shyKid(); // calls shyKid() if sensors detect obstacles
   }
 }
 
+/*
+  Description: 
+    dodges obstacles
+
+  Input: nothing
+  
+  Return: nothing
+*/
+
+void dodge() {
+  dodging = true; // while dodging is true, dodge() can't be called again
+
+  int moved = stepperRight.currentPosition(); // saves how far the robot has traveled to its target
+  int toMove = (target - moved) * INCHES_FOR_FULL_WHEEL_SPIN/TICKS_FOR_FULL_WHEEL_SPIN; // calculates how far the robot still needs to go
+  int dodgeDistance = 0; // initializes dodgeDistance
+  
+  delay(500);
+  spin(RIGHT,RIGHT_ANGLE,90); // turns right to avoid obstacle
+  delay(500);
+
+  // moves forward until the obstacles is no longer next to the robot
+  while(irLeftAvg < DETECT_DIST) {
+    forwardDodge(6,6);
+    dodgeDistance = dodgeDistance + 6; // tracks how far the robot moved to dodge
+    delay(1000);
+  }
+  
+  spin(LEFT,RIGHT_ANGLE,90); // turns left to realign itself
+  delay(500);
+  forwardDodge(12,6); // moves forward to be next to obstacle 
+  toMove = toMove - 12; // subtracts from distance to go
+  delay(500);
+
+  // moves forward until it is past the obstacle
+  while(irLeftAvg < DETECT_DIST) {
+    forwardDodge(6,6);
+    toMove = toMove - 6;
+    delay(1000);
+  }
+
+  // resets current position and calls goToGoal with new values
+  stepperRight.setCurrentPosition(0);
+  stepperLeft.setCurrentPosition(0);
+  dodging = false;
+  goToGoal(toMove,dodgeDistance);
+}
+
+/*
+  Description: 
+    moves random distances at random speeds
+
+  Input: nothing
+  
+  Return: nothing
+*/
+
 void randomWander() {
-   checkShyKid();
+   checkShyKid(); // checks for obstacles
 
    digitalWrite(GREEN_LED, HIGH);  // turn on the green led for this function
-  
+
+
+  // randomly decides the signs of the speed and distance values
   long rightDSign = random(1,1000);
   if(rightDSign % 2 == 1) {
     rightDSign = -1;
@@ -361,12 +437,13 @@ void randomWander() {
   } else {
     leftSSign = 1;
   }
-  
+
+  // randomly sets distances and speeds
   long rightDistance = rightDSign * random(400,1200);
   long leftDistance = leftDSign * random(400,1200);
   long rightSpeed = rightSSign * random(400,1200);
   long leftSpeed = leftSSign * random(400,1200);
-  
+
   stepperRight.setCurrentPosition(0);
   stepperLeft.setCurrentPosition(0);
   stepperRight.moveTo(rightDistance);//move distance
@@ -394,12 +471,12 @@ void randomWander() {
   Return: nothing
 */
 void forward(long inches, long inputSpeed) {
-//  checkShyKid();
-
   digitalWrite(RED_LED, HIGH);  // turn on the red led for this function
   
-  long distance = inches * TICKS_FOR_FULL_WHEEL_SPIN/INCHES_FOR_FULL_WHEEL_SPIN;
-  long tickSpeed = inputSpeed * TICKS_FOR_FULL_WHEEL_SPIN/INCHES_FOR_FULL_WHEEL_SPIN;
+  long distance = inches * TICKS_FOR_FULL_WHEEL_SPIN/INCHES_FOR_FULL_WHEEL_SPIN; // converts distance from inches to ticks
+  long tickSpeed = inputSpeed * TICKS_FOR_FULL_WHEEL_SPIN/INCHES_FOR_FULL_WHEEL_SPIN; // converts speed from in/s to ticks/s
+  goingToGoal = true; // tells the robot that goToGoal info is valid
+  target = distance; // updates target for dodge()
 
   // reset
   stepperRight.setCurrentPosition(0);
@@ -413,14 +490,16 @@ void forward(long inches, long inputSpeed) {
   stepperLeft.setSpeed(tickSpeed);//set speed
   stepperRight.runSpeedToPosition();//move right motor
   stepperLeft.runSpeedToPosition();//move left motor
-  runToStop();//run until the robot reaches the target
+  runToStop();//run until the robot reaches the target or sees an obstacle
+  
+  goingToGoal = false; goingToGoal = true; // tells the robot that goToGoal info is invalid
 
   digitalWrite(RED_LED, LOW);  // turn off the red led
 }
 
 /*
   Description: 
-    Moves the robot backwards in a straight line.
+    Moves the robot forward in a straight line, but calls the alternate version of runToStop() (useful for dodging)
 
   Input: 
     inches - the number of inches to move the robot.
@@ -428,43 +507,30 @@ void forward(long inches, long inputSpeed) {
   
   Return: nothing
 */
-void reverse(long inches, long inputSpeed) {
+void forwardDodge(long inches, long inputSpeed) {
+  digitalWrite(RED_LED, HIGH);  // turn on the red led for this function
+  
   long distance = inches * TICKS_FOR_FULL_WHEEL_SPIN/INCHES_FOR_FULL_WHEEL_SPIN;
   long tickSpeed = inputSpeed * TICKS_FOR_FULL_WHEEL_SPIN/INCHES_FOR_FULL_WHEEL_SPIN;
+  goingToGoal = true; // tells the robot that goToGoal info is valid
 
   // reset
   stepperRight.setCurrentPosition(0);
   stepperLeft.setCurrentPosition(0);
-  
-  stepperRight.moveTo(-distance);     //move distance backwards
-  stepperLeft.moveTo(-distance);      //move distance backwards
+
+  stepperRight.setMaxSpeed(tickSpeed);//set right motor speed
+  stepperLeft.setMaxSpeed(tickSpeed);//set left motor speed
+  stepperRight.moveTo(distance);//move distance
+  stepperLeft.moveTo(distance);//move distance
   stepperRight.setSpeed(tickSpeed);//set speed
   stepperLeft.setSpeed(tickSpeed);//set speed
-  stepperRight.runSpeedToPosition();  //move right motor
-  stepperLeft.runSpeedToPosition();   //move left motor
-  runToStop();              //run until the robot reaches the target
-}
+  stepperRight.runSpeedToPosition();//move right motor
+  stepperLeft.runSpeedToPosition();//move left motor
+  runToStop2(); // run until the robot reaches the target
+  
+  goingToGoal = false; // tells the robot that goToGoal info is invalid
 
-
-void turnRight(int rot) {
-  long positions[2]; // Array of desired stepper positions
-  Serial.print("reverse\t");
-  stepperRight.setCurrentPosition(0);
-  stepperLeft.setCurrentPosition(0);
-  positions[0] = stepperRight.currentPosition() - two_rotation; //right motor absolute position
-  positions[1] = stepperLeft.currentPosition() - two_rotation; //left motor absolute position
-  Serial.print(positions[0]);
-  Serial.print("\t");
-  Serial.println(positions[1]);
-  steppers.moveTo(positions);
-  steppers.runSpeedToPosition(); // Blocks until all are in
-  positions[0] = stepperRight.currentPosition() - rot; //right motor absolute position
-  positions[1] = stepperLeft.currentPosition() + rot; //left motor absolute position
-  Serial.print(positions[0]);
-  Serial.print("\t");
-  Serial.println(positions[1]);
-  steppers.moveTo(positions);
-  steppers.runSpeedToPosition(); // Blocks until all are in position
+  digitalWrite(RED_LED, LOW);  // turn off the red led
 }
 
 /*
@@ -500,37 +566,11 @@ void spin(int direction,long angle, long inputSpeed) {
   
   stepperRight.runSpeedToPosition();//set right motor speed
   stepperLeft.runSpeedToPosition();//set left motor speed
-  runToStop();
+  
+  runToStop2(); // runs without checking for obstacles
 }
 
-/*
-  Description: 
-    Pivot keeps one wheel stationary and the other wheel spins until the desired angle.
-
-  Input: 
-    direction - It can be left or right where left = 0, right = 1
-    angle - the angle in degrees to turn
-    inputSpeed - angular speed (degrees/s)
-  
-  Return: nothing
-*/
-void pivot(int direction, long angle, long inputSpeed) {
-//  checkShyKid();
-  
-  long ticks = (angle * 2 * FULL_CIRCLE_TICKS_COUNT)/FULL_SPIN;//FULL_CIRCLE_TICKS_COUNT was set for spin(), so we multiply it by 2 to work here
-  long tickSpeed = (inputSpeed * 2 * FULL_CIRCLE_TICKS_COUNT)/FULL_SPIN;
-  if(direction == LEFT) {
-    stepperRight.setSpeed(tickSpeed);//set right motor speed
-    stepperRight.moveTo(ticks);//move distance
-    stepperRight.runSpeedToPosition();//set right motor speed
-  } else if(direction == RIGHT) {
-    stepperLeft.setSpeed(tickSpeed);//set left motor speed
-    stepperLeft.moveTo(ticks);//move distance
-    stepperLeft.runSpeedToPosition();//set left motor speed
-  }
-  runToStop();
-}
-
+//stops motor activity
 void stop() {
   stepperRight.stop();
   stepperLeft.stop();
@@ -538,7 +578,7 @@ void stop() {
 
 /*
   Description: 
-    Moves the robot to face the given angle by calling pivot. 
+    Moves the robot to face the given angle by calling spin. 
 
   Input: 
     angle - the angle in degrees to turn. 
@@ -546,17 +586,11 @@ void stop() {
   Return: nothing
 */
 void goToAngle(int angle) {
-//  checkShyKid();
-  
-//  digitalWrite(GREEN_LED, HIGH);  // turn on the green led for this function
- 
   if(angle > 0) {
     spin(LEFT, angle, 90);//90 sets it to 90 degrees per second
   } else  if (angle < 0) {
     spin(RIGHT, -angle, 90);
   }
-
-//  digitalWrite(GREEN_LED, LOW); // turn off leds
 }
 
 /*
@@ -572,11 +606,9 @@ void goToAngle(int angle) {
   Return: nothing
 */
 void goToGoal(double x, double y) {
-//  checkShyKid();
-
-  digitalWrite(RED_LED, HIGH);  // turn on the green led for this function
-  digitalWrite(GREEN_LED, HIGH);  // turn on the green and yellow led for this function
-  digitalWrite(YELLOW_LED, HIGH); 
+  digitalWrite(RED_LED, HIGH);  // turn on the red led for this function
+  digitalWrite(GREEN_LED, HIGH);  // turn on the green led for this function
+  digitalWrite(YELLOW_LED, HIGH); // turn on the yellow led for this function
    
   int angle;
   if(x > 0 && y > 0) {        // correctly calculates if left front quadrant
@@ -618,12 +650,9 @@ void goToGoal(double x, double y) {
   to meet the lab requirements.
 */
 void updateSensors() {
-  //  Serial.print("updateSensors\t");
-  //  Serial.println(test_state);
   test_state = !test_state;//LED to test the heartbeat of the timer interrupt routine
   digitalWrite(enableLED, test_state);  // Toggles the LED to let you know the timer is working
   updateIR();     //update IR readings and update flag variable and state machine
-//  updateSonar();  //update Sonar readings and update flag variable and state machine
 }
 
 /*
@@ -632,134 +661,56 @@ void updateSensors() {
 */
 
 void updateIR() {
+  // reads ir sensor data
   irFrontAvg = analogRead(irFront);
   irRearAvg = analogRead(irRear);
   irLeftAvg = analogRead(irLeft);
   irRightAvg = analogRead(irRight);
-
+  
+  // calibrates ir sensor data
   irFrontAvg = (1111/(irFrontAvg+16))-1;
   irRearAvg = (1111/(irRearAvg+20))-1;
   irLeftAvg = (285714/(irLeftAvg+2257))-103;
   irRightAvg = (286714/(irRightAvg+2600))-90;
 
+  // filters out negative numbers
   if(irFrontAvg <= 0) {
     irFrontAvg = 1;
   }
-
   if(irRearAvg <= 0) {
     irRearAvg = 1;
   }
-
   if(irLeftAvg <= 0) {
     irLeftAvg = 1;
   }
-
   if(irRightAvg <= 0) {
     irRightAvg = 1;
   }
-  //  print IR data
-//      Serial.println("frontIR\tbackIR\tleftIR\trightIR");
-//      Serial.print(irFrontAvg); Serial.print("\t");
-//      Serial.print(irRearAvg); Serial.print("\t");
-//      Serial.print(irLeftAvg); Serial.print("\t");
-//      Serial.println(irRightAvg);
-}
-
-
-/*
-  This is a sample updateSonar() function, the description and code should be updated to take an average, consider all sensors and reflect
-  the necesary changes for the lab requirements.
-*/
-void updateSonar() {
-  test_state = !test_state;//LED to test the heartbeat of the timer interrupt routine
-  digitalWrite(enableLED, test_state);  // Toggles the LED to let you know the timer is working
-  for (uint8_t i = 0; i < SONAR_NUM; i++) { // Loop through all the sensors.
-    //    Serial.print("\t\t\t");
-    //    Serial.print(millis());
-    //    Serial.print("\t");
-    //    Serial.print(pingTimer[i]);
-    //    Serial.print("\t");
-    //    Serial.println(PING_INTERVAL);
-    if (millis() >= pingTimer[i]) {         // Is it this sensor's time to ping?
-      pingTimer[i] += PING_INTERVAL * SONAR_NUM;  // Set next time this sensor will be pinged.
-      if (i == 0 && currentSensor == SONAR_NUM - 1) {
-        //oneSensorCycle(); // Sensor ping cycle complete, do something with the results.
-        if (cm[0] > 0)
-          srLeftAvg = cm[0];
-        if (cm[1] > 0)
-          srRightAvg = cm[1];
-//        Serial.print("lt snr:\t");
-//        Serial.print(srLeftAvg);
-//        Serial.print(" cm ");
-//        Serial.print("\trt snr:\t");
-//        Serial.print(srRightAvg);
-//        Serial.println(" cm");
-      }
-      sonar[currentSensor].timer_stop();          // Make sure previous timer is canceled before starting a new ping (insurance).
-      currentSensor = i;                          // Sensor being accessed.
-      cm[currentSensor] = 0;                      // Make distance zero in case there's no ping echo for this sensor.
-      sonar[currentSensor].ping_timer(echoCheck); // Do the ping (processing continues, interrupt will call echoCheck to look for echo).
-    }
-  }
-  srLeftAvg = (-479616/(srLeftAvg-9520))-50;
-  srRightAvg = (-568181/(srRightAvg-11136))-50;
-}
-
-//This function writes to the sonar data if the ping is received
-void echoCheck() { // If ping received, set the sensor distance to array.
-  if (sonar[currentSensor].check_timer())
-    cm[currentSensor] = sonar[currentSensor].ping_result / US_ROUNDTRIP_CM;
-}
-
-//This function prints the sonar data once all sonars have been read
-void oneSensorCycle() { // Sensor ping cycle complete, do something with the results.
-  // The following code would be replaced with your code that does something with the ping results.
-  for (uint8_t i = 0; i < SONAR_NUM; i++) {
-    //Serial.print(i);
-    //Serial.print(" = ");
-    //Serial.print(cm[i]);
-    //Serial.print(" cm\t");
-  }
-  srLeftAvg = cm[0];
-  srRightAvg = cm[1];
-  //  Serial.print("Left Sonar = ");
-  //  Serial.print(srLeftAvg);
-  //  Serial.print("\t\tRight Sonar = ");
-  //  Serial.print(srRightAvg);
-  //  Serial.println();
 }
 
 //runToStop() is a function to run the individual motors without blocking
 void runToStop() {
+  // initializes variables
   int runNow = 1;
   long leftDistance = stepperLeft.targetPosition();
   long rightDistance = stepperRight.targetPosition();
-
   float leftSpeed = stepperLeft.speed();
   float rightSpeed = stepperRight.speed();
-
   int runLeft = 0;
   int runRight = 0;
-    
-//  stepperRight.setMaxSpeed(max_spd);
-//  stepperLeft.setMaxSpeed(max_spd);
-  while (runNow && (leftSpeed != 0 && rightSpeed !=0)) {
-//    Serial.print("obstacle: ");
-//    Serial.println(isObstacle);
-//    Serial.print("speedRight: ");
-//    Serial.println(rightSpeed);
-//    Serial.print("speedLeft: ");
-//    Serial.println(leftSpeed);
+  
+  while (runNow) {
     if (!isObstacle) {
+      // sets behavior when there is an obstacle
       stepperRight.setMaxSpeed(rightSpeed);
       stepperLeft.setMaxSpeed(leftSpeed);
       stepperRight.moveTo(rightDistance);
       stepperLeft.moveTo(leftDistance);
-//      stepperRight.setSpeed(rightSpeed);
-//      stepperLeft.setSpeed(leftSpeed);
     } else {
-      stepperRight.stop();
-      stepperLeft.stop();
+      // dodges an obstacles if not already dodging
+      if(dodging == false) {
+        dodge();
+      }
     }
     runRight = stepperRight.run();
     if (!runRight && !isObstacle) {
@@ -767,11 +718,39 @@ void runToStop() {
     }
     runLeft = stepperLeft.run();
     if (!runLeft && !isObstacle) {
-      bitClear(state, movingL);   // clear bit for left motor moving
+      bitClear(state, movingL);   // clear bit for left m otor moving
+    }
+    if ((state & 0b11) == 0 ) runNow = 0; // check if motors are running
+  }
+}
+
+//runToStop2() is a function to run the individual motors without blocking or checking for obstacles
+void runToStop2() {
+  // initializes variables
+  int runNow = 1;
+  long leftDistance = stepperLeft.targetPosition();
+  long rightDistance = stepperRight.targetPosition();
+  float leftSpeed = stepperLeft.speed();
+  float rightSpeed = stepperRight.speed();
+  int runLeft = 0;
+  int runRight = 0;
+  
+  while (runNow) {
+    // sets motor values
+    stepperRight.setMaxSpeed(rightSpeed);
+    stepperLeft.setMaxSpeed(leftSpeed);
+    stepperRight.moveTo(rightDistance);
+    stepperLeft.moveTo(leftDistance);
+    
+    runRight = stepperRight.run();
+    if (!runRight && !isObstacle) {
+      bitClear(state, movingR);  // clear bit for right motor moving
+    }
+    runLeft = stepperLeft.run();
+    if (!runLeft && !isObstacle) {
+      bitClear(state, movingL);   // clear bit for left m otor moving
     }
 
-    if ((state & 0b11) == 0 ) runNow = 0;
+    if ((state & 0b11) == 0 ) runNow = 0; // check if motors are running
   }
-//  Serial.println("Done");
-  
 }
