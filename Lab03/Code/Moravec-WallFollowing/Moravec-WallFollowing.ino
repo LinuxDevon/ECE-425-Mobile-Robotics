@@ -37,10 +37,10 @@
 
 //define stepper motor pin numbers
 #define stepperEnable 48//stepper enable pin on stepStick
-#define rtStepPin 52    //right stepper motor step pin
+#define rtStepPin 46    //right stepper motor step pin
 #define rtDirPin 53     // right stepper motor direction pin
-#define ltStepPin 50    //left stepper motor step pin
-#define ltDirPin 51     //left stepper motor direction pin
+#define ltStepPin 44    //left stepper motor step pin
+#define ltDirPin 49     //left stepper motor direction pin
 
 //define sensor pin numbers
 #define irFront   A8    //front IR analog pin
@@ -65,6 +65,7 @@ NewPing sonarRt(snrRight, snrRight);  //create an instance of the right sonar
 #define robot_spd 500           //set robot speed
 #define max_accel 10000         //maximum robot acceleration
 #define max_spd 1000            //maximum robot speed
+#define eighth_rotation 100    //stepper quarter rotation
 #define quarter_rotation 200    //stepper quarter rotation
 #define half_rotation 400       //stepper half rotation
 #define one_rotation  800       //stepper motor runs in 1/4 steps so 800 steps is one full rotation
@@ -73,9 +74,13 @@ NewPing sonarRt(snrRight, snrRight);  //create an instance of the right sonar
 #define four_rotation 3200      //stepper rotation 4 rotations
 #define five_rotation 4000      //stepper rotation 5 rotations
 
+#define RED_LED 14
+#define GREEN_LED 16
+#define YELLOW_LED 15
+
 //define sensor constants and variables
-#define irMin    150               // IR minimum threshold for wall (use a deadband of 4 to 6 inches)
-#define irMax    300               // IR maximum threshold for wall (use a deadband of 4 to 6 inches)
+#define irMin    364               // IR minimum threshold for wall (use a deadband of 4 to 6 inches)
+#define irMax    413               // IR maximum threshold for wall (use a deadband of 4 to 6 inches)
 #define snrMin   400               // sonar minimum threshold for wall (use a deadband of 4 to 6 inches)
 #define snrMax   600               // sonar maximum threshold for wall (use a deadband of 4 to 6 inches)
 
@@ -179,6 +184,12 @@ void setup()
   Timer1.attachInterrupt(updateSensors);      //attaches updateSensors() as a timer overflow interrupt
   Serial.begin(baud_rate);                    //start serial communication in order to debug the software while coding
   delay(1500);                                //wait 3 seconds before robot moves
+
+  // LED SETUP
+  // set as outputs
+  pinMode(RED_LED, OUTPUT);
+  pinMode(GREEN_LED, OUTPUT);
+  pinMode(YELLOW_LED, OUTPUT);
 }
 
 void loop()
@@ -189,7 +200,7 @@ void loop()
   //follow_hallway();   //robot moves to follow center of hallway when two walls are detected
   //wander();           //random wander behavior
   //avoid();            //avoid obstacle behavior
-  //delay(500);     //added so that you can read the data on the serial monitor
+//  delay(1000);     //added so that you can read the data on the serial monitor
 }
 
 /*
@@ -238,21 +249,26 @@ void wallBang() {
       reverse(two_rotation);              //back up
       spin(three_rotation, 1);              //turn right
     }
+//    Serial.println(li_cerror);
     if (li_cerror == 0) {           //no error robot in dead band drives forward
       //Serial.println("lt wall detected, drive forward");
       forward(two_rotation);      //move robot forward
     }
     else {
       //Serial.println("lt wall detected: adjust turn angle based upon error");
-      if (li_cerror < 0 && ls_curr < 1000) { //negative error means too close
+      if (li_cerror < 0 && ls_curr < irMax) { //negative error means too close
         //Serial.println("\tlt wall: too close turn right");
+        digitalWrite(YELLOW_LED, HIGH);  // turn on the yellow led for this function
         pivot(quarter_rotation, 1);      //pivot right
-        pivot(quarter_rotation, 0);   //pivot left
+        pivot(quarter_rotation-20, 0);   //pivot left
+        digitalWrite(YELLOW_LED, LOW);  // turn on the yellow led for this function
       }
-      else if (li_cerror > 0 && ls_curr > 500)  { //positive error means too far
+      else if (li_cerror > 0 && ls_curr > irMin)  { //positive error means too far
         //Serial.println("\tlt wall: too far turn left");
+        digitalWrite(RED_LED, HIGH);  // turn on the yellow led for this function
         pivot(quarter_rotation, 1);      //pivot left
-        pivot(quarter_rotation, 0);   //pivot right
+        pivot(quarter_rotation-20, 0);   //pivot right
+        digitalWrite(RED_LED, LOW);  // turn on the yellow led for this function
       }
     }
   }
@@ -298,8 +314,8 @@ void updateSensors() {
   flag = 0;                             //clear all sensor flags
   state = 0;                            //clear all state flags
   updateIR();                           //update IR readings and update flag variable and state machine
-  updateSonar();                        //update Sonar readings and update flag variable and state machine
-  //updateSonar2();                     //there are 2 ways to read sonar data, this is the 2nd option, use whichever one works best for your hardware
+//  updateSonar();                        //update Sonar readings and update flag variable and state machine
+//  updateSonar2();                     //there are 2 ways to read sonar data, this is the 2nd option, use whichever one works best for your hardware
   updateError();                        //update sensor current, previous, change in error
   updateState();                        //update State Machine based upon sensor readings
 }
@@ -658,4 +674,3 @@ void runToStop ( void ) {
       runNow = 0;
   }
 }
-
