@@ -79,8 +79,8 @@ NewPing sonarRt(snrRight, snrRight);  //create an instance of the right sonar
 #define YELLOW_LED 15
 
 //define sensor constants and variables
-#define irMin    364               // IR minimum threshold for wall (use a deadband of 4 to 6 inches)
-#define irMax    413               // IR maximum threshold for wall (use a deadband of 4 to 6 inches)
+#define irMin    4               // IR minimum threshold for wall (use a deadband of 4 to 6 inches)
+#define irMax    6               // IR maximum threshold for wall (use a deadband of 4 to 6 inches)
 #define snrMin   400               // sonar minimum threshold for wall (use a deadband of 4 to 6 inches)
 #define snrMax   600               // sonar maximum threshold for wall (use a deadband of 4 to 6 inches)
 
@@ -228,15 +228,19 @@ void wallBang() {
     }
     else {
       //Serial.println("rt wall: adjust turn angle based upon error");
-      if (ri_cerror < 0 && rs_curr < 1000) {          //negative error means too close
+      if (ri_cerror > 0 && rs_curr < irMin) {          //negative error means too close
         Serial.println("\trt wall: too close turn left");
-        pivot(quarter_rotation, 1);      //pivot left
-        pivot(quarter_rotation, 0);   //pivot right to straighten up
+        digitalWrite(YELLOW_LED, HIGH);
+        pivot(quarter_rotation, 0);      //pivot left
+        pivot(quarter_rotation, 1);   //pivot right to straighten up
+        digitalWrite(YELLOW_LED, LOW);
       }
-      else if (ri_cerror > 0 && rs_curr > 500) {     //positive error means too far
+      else if (ri_cerror < 0 && rs_curr > irMax) {     //positive error means too far
         Serial.println("\trt wall: too far turn right");
+        digitalWrite(RED_LED, HIGH);
         pivot(quarter_rotation, 1);      //pivot right
         pivot(quarter_rotation, 0);   //pivot left to straighten up
+        digitalWrite(RED_LED, LOW);
       }
     }
   }
@@ -252,22 +256,23 @@ void wallBang() {
 //    Serial.println(li_cerror);
     if (li_cerror == 0) {           //no error robot in dead band drives forward
       //Serial.println("lt wall detected, drive forward");
-      forward(two_rotation);      //move robot forward
+      forward(one_rotation);      //move robot forward
     }
     else {
-      //Serial.println("lt wall detected: adjust turn angle based upon error");
-      if (li_cerror < 0 && ls_curr < irMax) { //negative error means too close
-        //Serial.println("\tlt wall: too close turn right");
+      Serial.println("lt wall detected: adjust turn angle based upon error");
+      Serial.println(ls_curr);
+      if (li_cerror > 0 && ls_curr < irMin) { //negative error means too close
+        Serial.println("\tlt wall: too close turn right");
         digitalWrite(YELLOW_LED, HIGH);  // turn on the yellow led for this function
         pivot(quarter_rotation, 1);      //pivot right
-        pivot(quarter_rotation-20, 0);   //pivot left
+        pivot(quarter_rotation, 0);   //pivot left
         digitalWrite(YELLOW_LED, LOW);  // turn on the yellow led for this function
       }
-      else if (li_cerror > 0 && ls_curr > irMin)  { //positive error means too far
-        //Serial.println("\tlt wall: too far turn left");
+      else if (li_cerror < 0 && ls_curr > irMax)  { //positive error means too far
+        Serial.println("\tlt wall: too far turn left");
         digitalWrite(RED_LED, HIGH);  // turn on the yellow led for this function
-        pivot(quarter_rotation, 1);      //pivot left
-        pivot(quarter_rotation-20, 0);   //pivot right
+        pivot(quarter_rotation, 0);      //pivot left
+        pivot(quarter_rotation, 1);   //pivot right
         digitalWrite(RED_LED, LOW);  // turn on the yellow led for this function
       }
     }
@@ -309,6 +314,7 @@ void wallBang() {
 */
 void updateSensors() {
   //Serial.println("updateSensors\t");
+//  delay(250);
   test_state = !test_state;             //LED to test the heartbeat of the timer interrupt routine
   digitalWrite(test_led, test_state);   //flash the timer interrupt LED
   flag = 0;                             //clear all sensor flags
@@ -325,33 +331,64 @@ void updateSensors() {
    the necesary changes for the lab requirements.
 */
 void updateIR() {
-  int front, back, left, right;         //declare IR variables
-  front = analogRead(irFront);          //read front IR sensor
-  back = analogRead(irRear);            //read back IR sensor
-  left = analogRead(irLeft);            //read left IR sensor
-  right = analogRead(irRight);          //read right IR sensor
+  int front = 0, back = 0, left = 0, right = 0;         //declare IR variables
 
+  int i = 0;
+
+  for(i = 0; i < 5; i++) {
+    front += analogRead(irFront);          //read front IR sensor
+    back += analogRead(irRear);            //read back IR sensor
+    left += analogRead(irLeft);            //read left IR sensor
+    right += analogRead(irRight);          //read right IR sensor
+  }
+
+  front /= 5;
+  back /= 5;
+  left /= 5;
+  right /= 5;
+
+  front = (1111/(front+16))-1;
+  back = (1111/(back+20))-1;
+  left = (285714/(left+2257))-103;
+  right = (286714/(right+2600))-90;
+
+  // filters out negative numbers
+  if(front <= 0) {
+    front = 1;
+  }
+  if(back <= 0) {
+    back = 1;
+  }
+  if(left <= 0) {
+    left = 1;
+  }
+  if(right <= 0) {
+    right = 1;
+  }
+
+  ls_curr = left;
+  rs_curr = right;
   //  print IR data
-  //  Serial.println("frontIR\tbackIR\tleftIR\trightIR");
-  //  Serial.print(front); Serial.print("\t");
-  //  Serial.print(back); Serial.print("\t");
-  //  Serial.print(left); Serial.print("\t");
-  //  Serial.println(right);
-  if (right > irMin - 50) {
-    //Serial.println("\t\tset right obstacle");
+//    Serial.println("frontIR\tbackIR\tleftIR\trightIR");
+//    Serial.print(front); Serial.print("\t");
+//    Serial.print(back); Serial.print("\t");
+//    Serial.print(left); Serial.print("\t");
+    Serial.println(right);
+  if (right < irMax + 6) {
+    //Serial.println("\t\set right obstacle");
     bitSet(flag, obRight);            //set the right obstacle
   }
   else
     bitClear(flag, obRight);          //clear the right obstacle
 
-  if (left > irMin - 50) {
+  if (left < irMax + 10) {
     //Serial.println("\t\tset left obstacle");
     bitSet(flag, obLeft);             //set the left obstacle
   }
   else
     bitClear(flag, obLeft);           //clear the left obstacle
 
-  if (front > irMax - 50) {
+  if (front < irMin + 2) {
     //Serial.println("set front obstacle bit");
     bitSet(flag, obFront);            //set the front obstacle
   }
