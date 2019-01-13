@@ -73,10 +73,15 @@ NewPing sonarRt(snrRight, snrRight);  //create an instance of the right sonar
 #define three_rotation 2400     //stepper rotation 3 rotations
 #define four_rotation 3200      //stepper rotation 4 rotations
 #define five_rotation 4000      //stepper rotation 5 rotations
+#define six_rotation 4800      //stepper rotation 6 rotations
+#define eight_rotation 6400      //stepper rotation 8 rotations
 
 #define RED_LED 14
 #define GREEN_LED 16
 #define YELLOW_LED 15
+
+#define TRUE 0
+#define FALSE 1
 
 //define sensor constants and variables
 #define irMin    4               // IR minimum threshold for wall (use a deadband of 4 to 6 inches)
@@ -159,6 +164,9 @@ int right_derror;  //difference between right front and back sensor, this may be
 
 int derror;       //difference between left and right error to center robot in the hallway
 
+int rightState;
+int leftState;
+
 #define baud_rate 9600  //set serial communication baud rate
 
 void setup()
@@ -194,9 +202,9 @@ void setup()
 
 void loop()
 {
-  wallBang();           //wall following bang-bang control
-  //wallP();            //wall following proportional control
-  //wallPD();           //wall following PD control
+//  wallBang();           //wall following bang-bang control
+  wallP();            //wall following proportional control
+//  wallPD();           //wall following PD control
   //follow_hallway();   //robot moves to follow center of hallway when two walls are detected
   //wander();           //random wander behavior
   //avoid();            //avoid obstacle behavior
@@ -307,6 +315,258 @@ void wallBang() {
   }
 }
 
+/*
+   This is a sample wallBang() function, the description and code should be updated to reflect the actual robot motion function that you will implement
+   based upon the the lab requirements.  Some things to consider, you cannot use a blocking motor function because you need to use sensor data to update
+   movement.  You also need to continue to poll    the sensors during the motion and update flags and state because this will serve as your interrupt to
+   stop or change movement. This function will have the robot follow the wall if it is within 4 to 6 inches from the wall by moving forward and turn on the
+   controller if it is outside that band to make an adjustment to get back within the band.
+*/
+void wallP() {
+  Serial.print("\nWallBang: li_cerror ri_cerror\t");
+  Serial.print(li_cerror); Serial.print("\t");
+  Serial.println(ri_cerror);
+  float Pg = 0.5;
+  int r_turn = eighth_rotation*ri_cerror*Pg;
+  int l_turn = eighth_rotation*li_cerror*Pg;
+  if (bitRead(state, fright)) {
+    rightState = TRUE;
+    leftState = FALSE;
+    Serial.println("right wall found");
+    if (bitRead(flag, obFront)) { //check for a front wall before moving
+      Serial.print("right wall: front corner ");
+      //make left turn if wall found
+//      reverse(two_rotation);              //back up
+      spin(three_rotation, 0);              //turn left
+    }
+    if (ri_cerror == 0) {                 //no error, robot in deadband
+      Serial.println("right wall detected, drive forward");
+      forward(one_rotation);            //move robot forward
+    }
+    else {
+      //Serial.println("rt wall: adjust turn angle based upon error");
+      if (ri_cerror > 0 && rs_curr < irMin) {          //negative error means too close
+        Serial.println("\trt wall: too close turn left");
+        digitalWrite(YELLOW_LED, HIGH);
+        pivot(r_turn, 0);      //pivot left
+        delay(200);
+        pivot(r_turn, 1);   //pivot right to straighten up
+        delay(200);
+        digitalWrite(YELLOW_LED, LOW);
+      }
+      else if (ri_cerror < 0 && rs_curr > irMax) {     //positive error means too far
+        Serial.println("\trt wall: too far turn right");
+        digitalWrite(RED_LED, HIGH);
+        pivot(-r_turn, 1);      //pivot right
+        delay(200);
+        pivot(-r_turn, 0);   //pivot left to straighten up
+        delay(200);
+        digitalWrite(RED_LED, LOW);
+      }
+    }
+  }
+
+  else if (bitRead(state, fleft)  ) {
+    rightState = FALSE;
+    leftState = TRUE;
+    if (bitRead(flag, obFront)) { //check for a front wall before moving forward
+      //make right turn if wall found
+      Serial.print("left wall: front corner ");
+      //make left turn if wall found
+//      reverse(two_rotation);              //back up
+      spin(three_rotation, 1);              //turn right
+    }
+//    Serial.println(li_cerror);
+    if (li_cerror == 0) {           //no error robot in dead band drives forward
+      //Serial.println("lt wall detected, drive forward");
+      forward(one_rotation);      //move robot forward
+    }
+    else {
+      Serial.println("lt wall detected: adjust turn angle based upon error");
+      Serial.println(ls_curr);
+      if (li_cerror > 0 && ls_curr < irMin) { //negative error means too close
+        Serial.println("\tlt wall: too close turn right");
+        digitalWrite(YELLOW_LED, HIGH);  // turn on the yellow led for this function
+        pivot(l_turn, 1);      //pivot right
+        delay(200);
+        pivot(l_turn, 0);   //pivot left
+        delay(200);
+        digitalWrite(YELLOW_LED, LOW);  // turn on the yellow led for this function
+      }
+      else if (li_cerror < 0 && ls_curr > irMax)  { //positive error means too far
+        Serial.println("\tlt wall: too far turn left");
+        digitalWrite(RED_LED, HIGH);  // turn on the yellow led for this function
+        pivot(-l_turn, 0);      //pivot left
+        delay(200);
+        pivot(-l_turn, 1);   //pivot right
+        delay(200);
+        digitalWrite(RED_LED, LOW);  // turn on the yellow led for this function
+      }
+    }
+  }
+  else if (bitRead(state, center) ) {//follow hallway
+    if (((ri_cerror == 0) && (li_cerror == 0)) || (derror == 0)) {
+      //Serial.println("hallway detected, drive forward");
+      forward(two_rotation);          //drive robot forward
+    }
+    else {
+      //Serial.println("hallway detected: adjust turn angle based upon error");
+      //try to average the error between the left and right to center the robot
+      if (derror > 0) {
+        spin(quarter_rotation, 1);        //spin right, the left error is larger
+        pivot(quarter_rotation, 0);       //pivot left to adjust forward
+      }
+      else
+      {
+        spin(quarter_rotation, 0);        //spin left the right error is larger
+        pivot(quarter_rotation, 1);       //pivot right to adjust forward
+      }
+    }
+  }
+  else  if (bitRead(state, wander)) {
+    Serial.println("nothing to see here, I need to look for a wall");
+    stop();
+    delay(500);
+    //reverse(half_rotation);
+    spin(half_rotation, 0);
+    forward(one_rotation);
+    pivot(quarter_rotation,1);
+  } else if(!bitRead(state, fright) && rightState == TRUE) {
+    digitalWrite(GREEN_LED, HIGH);  // turn on the yellow led for this function
+//    forward(two_rotation);
+    delay(200);
+    pivot(eight_rotation,1);
+    delay(200);
+    forward(two_rotation);
+    delay(200);
+    digitalWrite(GREEN_LED, LOW);  // turn on the yellow led for this function
+  } else if(!bitRead(state, fleft) && leftState == TRUE) {
+    digitalWrite(GREEN_LED, HIGH);  // turn on the yellow led for this function
+//    forward(two_rotation);
+    delay(200);
+    pivot(eight_rotation,0);
+    delay(200);
+    forward(two_rotation);
+    delay(200);
+    digitalWrite(GREEN_LED, LOW);  // turn on the yellow led for this function
+  }
+}
+
+/*
+   This is a sample wallBang() function, the description and code should be updated to reflect the actual robot motion function that you will implement
+   based upon the the lab requirements.  Some things to consider, you cannot use a blocking motor function because you need to use sensor data to update
+   movement.  You also need to continue to poll    the sensors during the motion and update flags and state because this will serve as your interrupt to
+   stop or change movement. This function will have the robot follow the wall if it is within 4 to 6 inches from the wall by moving forward and turn on the
+   controller if it is outside that band to make an adjustment to get back within the band.
+*/
+void wallPD() {
+  Serial.print("\nWallBang: li_cerror ri_cerror\t");
+  Serial.print(li_cerror); Serial.print("\t");
+  Serial.println(ri_cerror);
+  int Pg = 1;
+  float Dg = 0.05;
+  int r_turn = abs(eighth_rotation*(ri_cerror*Pg+(ri_cerror-ri_perror)*Dg));
+  int l_turn = abs(eighth_rotation*(li_cerror*Pg+(li_cerror-li_perror)*Dg));
+  if (bitRead(state, fright)) {
+    Serial.println("right wall found");
+    if (bitRead(flag, obFront)) { //check for a front wall before moving
+      Serial.print("right wall: front corner ");
+      //make left turn if wall found
+      reverse(two_rotation);              //back up
+      spin(three_rotation, 0);              //turn left
+    }
+    if (ri_cerror == 0) {                 //no error, robot in deadband
+      Serial.println("right wall detected, drive forward");
+      forward(one_rotation);            //move robot forward
+    } else {
+      //Serial.println("rt wall: adjust turn angle based upon error");
+      if (ri_cerror > 0 && rs_curr < irMin) {          //negative error means too close
+        Serial.println("\trt wall: too close turn left");
+        digitalWrite(YELLOW_LED, HIGH);
+        pivot(r_turn, 0);      //pivot left
+        delay(200);
+        pivot(r_turn, 1);   //pivot right to straighten up
+        delay(200);
+        digitalWrite(YELLOW_LED, LOW);
+      }
+      else if (ri_cerror < 0 && rs_curr > irMax) {     //positive error means too far
+        Serial.println("\trt wall: too far turn right");
+        digitalWrite(RED_LED, HIGH);
+        pivot(r_turn, 1);      //pivot right
+        delay(200);
+        pivot(r_turn, 0);   //pivot left to straighten up
+        delay(200);
+        digitalWrite(RED_LED, LOW);
+      }
+    }
+  }
+
+  else if (bitRead(state, fleft)  ) {
+    if (bitRead(flag, obFront)) { //check for a front wall before moving forward
+      //make right turn if wall found
+      
+      Serial.print("left wall: front corner ");
+      //make left turn if wall found
+      reverse(two_rotation);              //back up
+      spin(three_rotation, 1);              //turn right
+    }
+//    Serial.println(li_cerror);
+    if (li_cerror == 0) {           //no error robot in dead band drives forward
+      //Serial.println("lt wall detected, drive forward");
+      forward(one_rotation);      //move robot forward
+    }
+    else {
+      Serial.println("lt wall detected: adjust turn angle based upon error");
+      Serial.println(ls_curr);
+      if (li_cerror > 0 && ls_curr < irMin) { //negative error means too close
+        Serial.println("\tlt wall: too close turn right");
+        digitalWrite(YELLOW_LED, HIGH);  // turn on the yellow led for this function
+        pivot(l_turn, 1);      //pivot right
+        delay(200);
+        pivot(l_turn, 0);   //pivot left
+        delay(200);
+        digitalWrite(YELLOW_LED, LOW);  // turn on the yellow led for this function
+      }
+      else if (li_cerror < 0 && ls_curr > irMax)  { //positive error means too far
+        Serial.println("\tlt wall: too far turn left");
+        digitalWrite(RED_LED, HIGH);  // turn on the yellow led for this function
+        pivot(l_turn, 0);      //pivot left
+        delay(200);
+        pivot(l_turn, 1);   //pivot right
+        delay(200);
+        digitalWrite(RED_LED, LOW);  // turn on the yellow led for this function
+      }
+    }
+  }
+  else if (bitRead(state, center) ) {//follow hallway
+    if (((ri_cerror == 0) && (li_cerror == 0)) || (derror == 0)) {
+      //Serial.println("hallway detected, drive forward");
+      forward(two_rotation);          //drive robot forward
+    }
+    else {
+      //Serial.println("hallway detected: adjust turn angle based upon error");
+      //try to average the error between the left and right to center the robot
+      if (derror > 0) {
+        spin(quarter_rotation, 1);        //spin right, the left error is larger
+        pivot(quarter_rotation, 0);       //pivot left to adjust forward
+      }
+      else
+      {
+        spin(quarter_rotation, 0);        //spin left the right error is larger
+        pivot(quarter_rotation, 1);       //pivot right to adjust forward
+      }
+    }
+  }
+  else  if (bitRead(state, wander)) {
+    Serial.println("nothing to see here, I need to look for a wall");
+    stop();
+//    delay(500);
+//    //reverse(half_rotation);
+//    spin(half_rotation, 0);
+//    forward(one_rotation);
+//    pivot(quarter_rotation,1);
+  }
+}
 
 /*
   This is a sample updateSensors() function and it should be updated along with the description to reflect what you actually implemented
@@ -381,7 +641,7 @@ void updateIR() {
   else
     bitClear(flag, obRight);          //clear the right obstacle
 
-  if (left < irMax + 10) {
+  if (left < irMax + 6) {
     //Serial.println("\t\tset left obstacle");
     bitSet(flag, obLeft);             //set the left obstacle
   }
@@ -569,7 +829,7 @@ void updateState() {
   if (!(flag)) { //no sensors triggered
     //set random wander bit
     Serial.println("\tset random wander state");
-    bitSet(state, wander);//set the wander state
+//    bitSet(state, wander);//set the wander state
     //clear all other bits
     bitClear(state, fright);//clear follow wall state
     bitClear(state, fleft);//clear follow wall state
