@@ -62,9 +62,9 @@ NewPing sonarRt(snrRight, snrRight);  //create an instance of the right sonar
 #define stepperEnFalse true     //variable for disabling stepper motor
 #define test_led 13             //test led to test interrupt heartbeat
 #define enableLED 13            //stepper enabled LED
-#define robot_spd 500           //set robot speed
+#define robot_spd 250           //set robot speed
 #define max_accel 10000         //maximum robot acceleration
-#define max_spd 1000            //maximum robot speed
+#define max_spd 500            //maximum robot speed
 #define eighth_rotation 100    //stepper quarter rotation
 #define quarter_rotation 200    //stepper quarter rotation
 #define half_rotation 400       //stepper half rotation
@@ -166,6 +166,8 @@ int derror;       //difference between left and right error to center robot in t
 
 int rightState;
 int leftState;
+
+int counter = 3;
 
 #define baud_rate 9600  //set serial communication baud rate
 
@@ -347,7 +349,11 @@ void wallP() {
     }
     if (ri_cerror == 0) {                 //no error, robot in deadband
       Serial.println("right wall detected, drive forward");
+      digitalWrite(YELLOW_LED, HIGH);  // turn on the yellow led for this function
+      digitalWrite(RED_LED, HIGH);  // turn on the yellow led for this function
       forward(quarter_rotation);            //move robot forward
+      digitalWrite(YELLOW_LED, LOW);  // turn on the yellow led for this function
+      digitalWrite(RED_LED, LOW);  // turn on the yellow led for this function
     }
     else {
       //Serial.println("rt wall: adjust turn angle based upon error");
@@ -363,6 +369,8 @@ void wallP() {
       else if (ri_cerror > 0 && rs_curr <= 1) {
         Serial.println("\trt wall: way too close run away");
         digitalWrite(GREEN_LED, HIGH);
+        digitalWrite(YELLOW_LED, HIGH);
+        digitalWrite(RED_LED, HIGH);
         pivot(one_rotation, 1);    
         delay(200);
         reverse(eighth_rotation);
@@ -370,6 +378,8 @@ void wallP() {
         pivot(-one_rotation, 1);   
         delay(200);
         digitalWrite(GREEN_LED, LOW);
+        digitalWrite(YELLOW_LED, LOW);
+        digitalWrite(RED_LED, LOW);
       }
       else if (ri_cerror < 0 && rs_curr > irMax) {     //positive error means too far
         Serial.println("\trt wall: too far turn right");
@@ -399,7 +409,11 @@ void wallP() {
 //    Serial.println(li_cerror);
     if (li_cerror == 0) {           //no error robot in dead band drives forward
       //Serial.println("lt wall detected, drive forward");
+      digitalWrite(YELLOW_LED, HIGH);  // turn on the yellow led for this function
+      digitalWrite(GREEN_LED, HIGH);  // turn on the yellow led for this function
       forward(quarter_rotation);      //move robot forward
+      digitalWrite(YELLOW_LED, LOW);  // turn on the yellow led for this function
+      digitalWrite(GREEN_LED, LOW);  // turn on the yellow led for this function
     }
     else {
       Serial.println("lt wall detected: adjust turn angle based upon error");
@@ -416,6 +430,8 @@ void wallP() {
       else if (li_cerror > 0 && ls_curr <= 1) {
         Serial.println("\tlt wall: way too close run away");
         digitalWrite(GREEN_LED, HIGH);
+        digitalWrite(YELLOW_LED, HIGH);
+        digitalWrite(RED_LED, HIGH);
         pivot(one_rotation, 0);    
         delay(200);
         reverse(eighth_rotation);
@@ -423,6 +439,8 @@ void wallP() {
         pivot(-one_rotation, 0);   
         delay(200);
         digitalWrite(GREEN_LED, LOW);
+        digitalWrite(YELLOW_LED, LOW);
+        digitalWrite(RED_LED, LOW);
       }
       else if (li_cerror < 0 && ls_curr > irMax)  { //positive error means too far
         Serial.println("\tlt wall: too far turn left");
@@ -436,47 +454,60 @@ void wallP() {
     }
   }
   else if (bitRead(state, center) ) {//follow hallway
+    digitalWrite(RED_LED, HIGH);  // turn on the yellow led for this function
+    digitalWrite(GREEN_LED, HIGH);  // turn on the yellow led for this function
+    digitalWrite(YELLOW_LED, HIGH);  // turn on the yellow led for this function
     if (((ri_cerror == 0) && (li_cerror == 0)) || (derror == 0)) {
       //Serial.println("hallway detected, drive forward");
-      forward(two_rotation);          //drive robot forward
+      forward(half_rotation);          //drive robot forward
     }
     else {
       //Serial.println("hallway detected: adjust turn angle based upon error");
       //try to average the error between the left and right to center the robot
       if (derror > 0) {
-        spin(quarter_rotation, 1);        //spin right, the left error is larger
+        spin(eighth_rotation, 1);        //spin right, the left error is larger
         pivot(quarter_rotation, 0);       //pivot left to adjust forward
       }
       else
       {
-        spin(quarter_rotation, 0);        //spin left the right error is larger
+        spin(eighth_rotation, 0);        //spin left the right error is larger
         pivot(quarter_rotation, 1);       //pivot right to adjust forward
       }
     }
-  }
-  else  if (bitRead(state, wander)) {
+    digitalWrite(RED_LED, LOW);  // turn on the yellow led for this function
+    digitalWrite(GREEN_LED, LOW);  // turn on the yellow led for this function
+    digitalWrite(YELLOW_LED, LOW);  // turn on the yellow led for this function
+  } else if (bitRead(flag, obFront) && !bitRead(flag, obLeft) && !bitRead(flag, obRight)) {
+    digitalWrite(RED_LED, HIGH);  // turn on the yellow led for this function
+    digitalWrite(GREEN_LED, HIGH);  // turn on the yellow led for this function
+    reverse(eighth_rotation);              //back up
+    delay(200);
+    spin(half_rotation, 1);              //turn right
+    digitalWrite(RED_LED, LOW);  // turn on the yellow led for this function
+    digitalWrite(GREEN_LED, LOW);  // turn on the yellow led for this function
+  } else  if (bitRead(state, wander)) {
     Serial.println("nothing to see here, I need to look for a wall");
+    digitalWrite(GREEN_LED, HIGH);  // turn on the yellow led for this function
     rightState = FALSE;
     leftState = FALSE;
     randomWander();
+    digitalWrite(GREEN_LED, LOW);  // turn on the yellow led for this function
   } else if(!bitRead(state, fright) && rightState == TRUE) {
-    digitalWrite(GREEN_LED, HIGH);  // turn on the yellow led for this function
+    counter++;
     delay(200);
     spin(half_rotation+50,1);
     delay(200);
     forward(one_rotation);
     forward(half_rotation);
     delay(200);
-    digitalWrite(GREEN_LED, LOW);  // turn on the yellow led for this function
   } else if(!bitRead(state, fleft) && leftState == TRUE) {
-    digitalWrite(GREEN_LED, HIGH);  // turn on the yellow led for this function
+    counter++;
     delay(200);
     spin(half_rotation+50,0);
     delay(200);
     forward(one_rotation);
     forward(half_rotation);
     delay(200);
-    digitalWrite(GREEN_LED, LOW);  // turn on the yellow led for this function
   }
 }
 
@@ -854,7 +885,7 @@ void updateError() {
    based upon the the lab requirements.
 */
 void updateState() {
-  if (!(flag)) { //no sensors triggered
+  if (!(flag) && counter >= 3) { //no sensors triggered
     //set random wander bit
 //    Serial.println("\tset random wander state");
     bitSet(state, wander);//set the wander state
@@ -865,6 +896,7 @@ void updateState() {
   }
   else if (bitRead(flag, obRight) && !bitRead(flag, obLeft) ) {
 //    Serial.println("\tset follow right state");
+    counter = 0;
     bitSet(state, fright);    //set RIGHT WALL state
     //clear all other bits
     bitClear(state, wander);  //clear wander state
@@ -873,6 +905,7 @@ void updateState() {
   }
   else if (bitRead(flag, obLeft) && !bitRead(flag, obRight) ) {
 //    Serial.println("\tset follow left state");
+    counter = 0;
     bitSet(state, fleft);     //set left wall state
     //clear all other bits
     bitClear(state, fright);  //clear follow wall state
@@ -881,13 +914,19 @@ void updateState() {
   }
   else if (bitRead(flag, obLeft) && bitRead(flag, obRight) ) {
 //    Serial.println("\tset follow hallway state");
+    counter = 0;
     bitSet(state, center);      //set the hallway state
     //clear all other bits
     bitClear(state, fright);    //clear follow wall state
     bitClear(state, wander);    //clear wander state
     bitClear(state, fleft);     //clear follow wall state
   }
-
+//  else if (!bitRead(flag, obLeft) && !bitRead(flag, obRight) && bitRead(flag, obFront)) {
+//    reverse(eighth_rotation);
+//    pivot(-one_rotation, 0);  
+////    bitSet(flag, obRight);
+////    bitClear(flag, obFront);
+//  }
   //print flag byte
   //  Serial.println("\trtSNR\tltSNR\tltIR\trtIR\trearIR\tftIR");
   //  Serial.print("flag byte: ");
