@@ -198,6 +198,8 @@ void setup()
   pinMode(RED_LED, OUTPUT);
   pinMode(GREEN_LED, OUTPUT);
   pinMode(YELLOW_LED, OUTPUT);
+
+  bitSet(flag, wander);
 }
 
 void loop()
@@ -326,9 +328,10 @@ void wallP() {
   Serial.print("\nWallBang: li_cerror ri_cerror\t");
   Serial.print(li_cerror); Serial.print("\t");
   Serial.println(ri_cerror);
-  float Pg = 0.5;
-  int r_turn = eighth_rotation*ri_cerror*Pg;
-  int l_turn = eighth_rotation*li_cerror*Pg;
+  float Pg_right = 0.75;
+  float Pg_left = 0.75;
+  int r_turn = abs(eighth_rotation*ri_cerror*Pg_right);
+  int l_turn = abs(eighth_rotation*li_cerror*Pg_left);
   if (bitRead(state, fright)) {
     rightState = TRUE;
     leftState = FALSE;
@@ -336,16 +339,19 @@ void wallP() {
     if (bitRead(flag, obFront)) { //check for a front wall before moving
       Serial.print("right wall: front corner ");
       //make left turn if wall found
-//      reverse(two_rotation);              //back up
-      spin(three_rotation, 0);              //turn left
+      delay(200);
+      reverse(eighth_rotation);              //back up
+      delay(200);
+      spin(half_rotation, 0);              //turn left
+      delay(200);
     }
     if (ri_cerror == 0) {                 //no error, robot in deadband
       Serial.println("right wall detected, drive forward");
-      forward(one_rotation);            //move robot forward
+      forward(quarter_rotation);            //move robot forward
     }
     else {
       //Serial.println("rt wall: adjust turn angle based upon error");
-      if (ri_cerror > 0 && rs_curr < irMin) {          //negative error means too close
+      if (ri_cerror > 0 && rs_curr < irMin && rs_curr > 1) {          //negative error means too close
         Serial.println("\trt wall: too close turn left");
         digitalWrite(YELLOW_LED, HIGH);
         pivot(r_turn, 0);      //pivot left
@@ -354,12 +360,23 @@ void wallP() {
         delay(200);
         digitalWrite(YELLOW_LED, LOW);
       }
+      else if (ri_cerror > 0 && rs_curr <= 1) {
+        Serial.println("\trt wall: way too close run away");
+        digitalWrite(GREEN_LED, HIGH);
+        pivot(one_rotation, 1);    
+        delay(200);
+        reverse(eighth_rotation);
+        delay(200);
+        pivot(-one_rotation, 1);   
+        delay(200);
+        digitalWrite(GREEN_LED, LOW);
+      }
       else if (ri_cerror < 0 && rs_curr > irMax) {     //positive error means too far
         Serial.println("\trt wall: too far turn right");
         digitalWrite(RED_LED, HIGH);
-        pivot(-r_turn, 1);      //pivot right
+        pivot(r_turn, 1);      //pivot right
         delay(200);
-        pivot(-r_turn, 0);   //pivot left to straighten up
+        pivot(r_turn, 0);   //pivot left to straighten up
         delay(200);
         digitalWrite(RED_LED, LOW);
       }
@@ -373,18 +390,21 @@ void wallP() {
       //make right turn if wall found
       Serial.print("left wall: front corner ");
       //make left turn if wall found
-//      reverse(two_rotation);              //back up
-      spin(three_rotation, 1);              //turn right
+      delay(200);
+      reverse(eighth_rotation);              //back up
+      delay(200);
+      spin(half_rotation, 1);              //turn right
+      delay(200);
     }
 //    Serial.println(li_cerror);
     if (li_cerror == 0) {           //no error robot in dead band drives forward
       //Serial.println("lt wall detected, drive forward");
-      forward(one_rotation);      //move robot forward
+      forward(quarter_rotation);      //move robot forward
     }
     else {
       Serial.println("lt wall detected: adjust turn angle based upon error");
       Serial.println(ls_curr);
-      if (li_cerror > 0 && ls_curr < irMin) { //negative error means too close
+      if (li_cerror > 0 && ls_curr < irMin && ls_curr > 1) { //negative error means too close
         Serial.println("\tlt wall: too close turn right");
         digitalWrite(YELLOW_LED, HIGH);  // turn on the yellow led for this function
         pivot(l_turn, 1);      //pivot right
@@ -393,12 +413,23 @@ void wallP() {
         delay(200);
         digitalWrite(YELLOW_LED, LOW);  // turn on the yellow led for this function
       }
+      else if (li_cerror > 0 && ls_curr <= 1) {
+        Serial.println("\tlt wall: way too close run away");
+        digitalWrite(GREEN_LED, HIGH);
+        pivot(one_rotation, 0);    
+        delay(200);
+        reverse(eighth_rotation);
+        delay(200);
+        pivot(-one_rotation, 0);   
+        delay(200);
+        digitalWrite(GREEN_LED, LOW);
+      }
       else if (li_cerror < 0 && ls_curr > irMax)  { //positive error means too far
         Serial.println("\tlt wall: too far turn left");
         digitalWrite(RED_LED, HIGH);  // turn on the yellow led for this function
-        pivot(-l_turn, 0);      //pivot left
+        pivot(l_turn, 0);      //pivot left
         delay(200);
-        pivot(-l_turn, 1);   //pivot right
+        pivot(l_turn, 1);   //pivot right
         delay(200);
         digitalWrite(RED_LED, LOW);  // turn on the yellow led for this function
       }
@@ -425,28 +456,25 @@ void wallP() {
   }
   else  if (bitRead(state, wander)) {
     Serial.println("nothing to see here, I need to look for a wall");
-    stop();
-    delay(500);
-    //reverse(half_rotation);
-    spin(half_rotation, 0);
-    forward(one_rotation);
-    pivot(quarter_rotation,1);
+    rightState = FALSE;
+    leftState = FALSE;
+    randomWander();
   } else if(!bitRead(state, fright) && rightState == TRUE) {
     digitalWrite(GREEN_LED, HIGH);  // turn on the yellow led for this function
-//    forward(two_rotation);
     delay(200);
-    pivot(eight_rotation,1);
+    spin(half_rotation+50,1);
     delay(200);
-    forward(two_rotation);
+    forward(one_rotation);
+    forward(half_rotation);
     delay(200);
     digitalWrite(GREEN_LED, LOW);  // turn on the yellow led for this function
   } else if(!bitRead(state, fleft) && leftState == TRUE) {
     digitalWrite(GREEN_LED, HIGH);  // turn on the yellow led for this function
-//    forward(two_rotation);
     delay(200);
-    pivot(eight_rotation,0);
+    spin(half_rotation+50,0);
     delay(200);
-    forward(two_rotation);
+    forward(one_rotation);
+    forward(half_rotation);
     delay(200);
     digitalWrite(GREEN_LED, LOW);  // turn on the yellow led for this function
   }
@@ -633,7 +661,7 @@ void updateIR() {
 //    Serial.print(front); Serial.print("\t");
 //    Serial.print(back); Serial.print("\t");
 //    Serial.print(left); Serial.print("\t");
-    Serial.println(right);
+//    Serial.println(right);
   if (right < irMax + 6) {
     //Serial.println("\t\set right obstacle");
     bitSet(flag, obRight);            //set the right obstacle
@@ -828,15 +856,15 @@ void updateError() {
 void updateState() {
   if (!(flag)) { //no sensors triggered
     //set random wander bit
-    Serial.println("\tset random wander state");
-//    bitSet(state, wander);//set the wander state
+//    Serial.println("\tset random wander state");
+    bitSet(state, wander);//set the wander state
     //clear all other bits
     bitClear(state, fright);//clear follow wall state
     bitClear(state, fleft);//clear follow wall state
     bitClear(state, center);//clear follow wall state
   }
   else if (bitRead(flag, obRight) && !bitRead(flag, obLeft) ) {
-    Serial.println("\tset follow right state");
+//    Serial.println("\tset follow right state");
     bitSet(state, fright);    //set RIGHT WALL state
     //clear all other bits
     bitClear(state, wander);  //clear wander state
@@ -844,7 +872,7 @@ void updateState() {
     bitClear(state, center);  //clear follow wall state
   }
   else if (bitRead(flag, obLeft) && !bitRead(flag, obRight) ) {
-    Serial.println("\tset follow left state");
+//    Serial.println("\tset follow left state");
     bitSet(state, fleft);     //set left wall state
     //clear all other bits
     bitClear(state, fright);  //clear follow wall state
@@ -852,7 +880,7 @@ void updateState() {
     bitClear(state, center);  //clear follow wall state
   }
   else if (bitRead(flag, obLeft) && bitRead(flag, obRight) ) {
-    Serial.println("\tset follow hallway state");
+//    Serial.println("\tset follow hallway state");
     bitSet(state, center);      //set the hallway state
     //clear all other bits
     bitClear(state, fright);    //clear follow wall state
@@ -943,6 +971,53 @@ void spin(int rot, int dir) {
   runToStop();                        //run until the robot reaches the target
 }
 
+/*
+  Description: 
+    moves random distances at random speeds
+
+  Input: nothing
+  
+  Return: nothing
+*/
+
+void randomWander() {
+   digitalWrite(GREEN_LED, HIGH);  // turn on the green led for this function
+
+
+  // randomly decides the signs of the speed and distance values
+  long rightDSign = random(1,1000);
+  if(rightDSign % 2 == 1) {
+    rightDSign = -1;
+  } else {
+    rightDSign = 1;
+  }
+  
+  long leftDSign = random(1,1000);
+  if(leftDSign % 2 == 1) {
+    leftDSign = -1;
+  } else {
+    leftDSign = 1;
+  }
+
+  // randomly sets distances and speeds
+  long rightDistance = rightDSign * random(400,1200);
+  long leftDistance = leftDSign * random(400,1200);
+
+  long positions[2];                                    // Array of desired stepper positions
+  stepperRight.setCurrentPosition(0);                   //reset right motor to position 0
+  stepperLeft.setCurrentPosition(0);                    //reset left motor to position 0
+  positions[0] = stepperRight.currentPosition() + rightDistance;  //right motor absolute position
+  positions[1] = stepperLeft.currentPosition() + leftDistance;   //left motor absolute position
+
+  stepperRight.move(positions[0]);    //move right motor to position
+  stepperLeft.move(positions[1]);     //move left motor to position
+  bitSet(state, movingL);             //move left wheel
+  bitSet(state, movingR);             //move right wheel
+  runToStop();                        //run until the robot reaches the target
+
+  digitalWrite(GREEN_LED, LOW);  // turn off the green led
+}
+
 /*robot stop function */
 void stop() {
   stepperRight.stop();
@@ -954,6 +1029,7 @@ void stop() {
 */
 void runToStop ( void ) {
   int runNow = 1;
+  Timer1.stop();
   //  stepperRight.setMaxSpeed(max_spd);
   //  stepperLeft.setMaxSpeed(max_spd);
   //  stepperRight.setSpeed(robot_spd);
@@ -970,4 +1046,5 @@ void runToStop ( void ) {
     if (!bitRead(state, movingR) & !bitRead(state, movingL))
       runNow = 0;
   }
+  Timer1.start();
 }
