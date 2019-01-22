@@ -113,10 +113,9 @@ NewPing sonarRt(snrRight, snrRight);  //create an instance of the right sonar
 #define FALSE 1
 
 //define sensor constants and variables
-#define irMin    4   // IR minimum threshold for wall 4 inches
-#define irMax    6   // IR maximum threshold for wall 6 inches
-#define liMin    12  // light minimum threshold 12 inches
-#define liMax    0   // light maximum threshold 0 inches
+#define irMin    4      // IR minimum threshold for wall 4 inches
+#define irMax    6      // IR maximum threshold for wall 6 inches
+#define liMin    0.5   // light minimum threshold 12 inches
 
 int irFrontArray[5] = {0, 0, 0, 0, 0};//array to hold 5 front IR readings
 int irRearArray[5] = {0, 0, 0, 0, 0}; //array to hold 5 back IR readings
@@ -147,7 +146,7 @@ volatile byte flag = 0;
 #define obLeft    3   // Left IR trip
 #define obFLeft   4   // Left Sonar trip
 #define obFRight  5   // Right Sonar trip
-#define lit     6   // Light trip
+#define lit       6   // Light trip
 
 //bit definitions for robot motion and state byte [follow_hallway follow_right follow_left wander avoid]
 volatile byte state = 0;
@@ -167,46 +166,47 @@ byte layers = 4;
 #define fhLayer 3     //follow hallway layer
 
 //define light sensing behaviors
-int lightType;
-#define fear = 0  //love behavior
-#define aggr = 1  //love behavior
-#define love = 2  //love behavior
-#define expl = 3  //love behavior
+#define none 0  //no behavior
+#define aggr 1  //aggresive behavior
+#define love 2  //love behavior
+#define expl 3  //explorer behavior
+#define fear 4  //fear behavior
+int lightType = fear;
 
 
 //define PD control global variables, curr_error = current reading - setpoint, prev_error = curr_error on previous iteration
 //store previous error to calculate derror = curr_error-prev_error, side_derror = side front sensor - side back sensor
 //store derror = difference between left and right error (used for hall follow to center the robot)
 
-int ls_curr;    //left sonar current reading
-int li_curr;    //left ir current reading
-int lli_curr;   //left light current reading
-int rs_curr;    //right sonar current reading
-int ri_curr;    //right ir current reading
-int rli_curr;   //left light current reading
+int ls_curr;      //left sonar current reading
+int li_curr;      //left ir current reading
+float lli_curr;   //left light current reading
+int rs_curr;      //right sonar current reading
+int ri_curr;      //right ir current reading
+float rli_curr;   //left light current reading
 
 int ls_cerror;    //left sonar current error
 int li_cerror;    //left ir current error
-int lli_cerror;   //left light current error
+float lli_cerror; //left light current error
 int rs_cerror;    //right sonar current error
 int ri_cerror;    //right ir current error
-int rli_cerror;   //right light current error
+float rli_cerror; //right light current error
 
 int ls_perror;    //left sonar previous error
 int li_perror;    //left ir previous error
-int lli_perror;   //left light previous error
+float lli_perror; //left light previous error
 int rs_perror;    //right sonar previous error
 int ri_perror;    //right ir previous error
-int rli_perror;   //right light previous error
+float rli_perror; //right light previous error
 
-int ls_derror;  //left sonar delta error
-int li_derror;  //left ir delta error
-int lli_derror; //left light delta error
-int rs_derror;  //right sonar delta error
-int ri_derror;  //right ir delta error
-int rli_derror; //right light delta error
-int left_derror;   //difference between left front and back sensor, this may be useful for adjusting the turn angle
-int right_derror;  //difference between right front and back sensor, this may be useful for adjusting the turn angle
+int ls_derror;    //left sonar delta error
+int li_derror;    //left ir delta error
+float lli_derror; //left light delta error
+int rs_derror;    //right sonar delta error
+int ri_derror;    //right ir delta error
+float rli_derror; //right light delta error
+int left_derror;  //difference between left front and back sensor, this may be useful for adjusting the turn angle
+int right_derror; //difference between right front and back sensor, this may be useful for adjusting the turn angle
 
 int derror;       //difference between left and right error to center robot in the hallway
 
@@ -261,89 +261,9 @@ void setup()
 /*
  * Main program to continuously call
  */
-lightType = fear;
 void loop()
 {
-//  wallBang();           //wall following bang-bang control
   wallP();            //wall following proportional control
-}
-
-/*
-  Description: 
-    uses bang-bang control to do a rough wall follow. It makes minor precalculated
-    movements to adjusts either right or left to keep within the 4-6 inch band.
-    If no walll is found it random wanders to find the wall. 
-
-    Yellow LED - too close to the wall
-    Red LED - too far away from the wall
-
-  Input: nothing
-  
-  Return: nothing
-*/
-void wallBang() {
-  // The right wall found
-  if (bitRead(state, fright)) {
-    // Inside corner
-    if (bitRead(flag, obFront)) { //check for a front wall before moving
-      //make left turn if wall found
-      reverse(two_rotation);     //back up
-      spin(three_rotation, 0);   //turn left
-    }
-    if (ri_cerror == 0) {   //no error, robot in deadband
-      forward(three_rotation);            //move robot forward
-    }
-    else {  // Either too close or too far
-      if (ri_cerror > 0 && rs_curr < irMin) { // Within 4 inches of wall
-        digitalWrite(YELLOW_LED, HIGH);
-        pivot(quarter_rotation, 0);   //pivot left
-        pivot(quarter_rotation, 1);   //pivot right to straighten up
-        digitalWrite(YELLOW_LED, LOW);
-      }
-      else if (ri_cerror < 0 && rs_curr > irMax) {  // outside of the 6 inches
-        digitalWrite(RED_LED, HIGH);
-        pivot(quarter_rotation, 1);   //pivot right
-        pivot(quarter_rotation, 0);   //pivot left to straighten up
-        digitalWrite(RED_LED, LOW);
-      }
-    }
-  }
-  // The left wall found
-  else if (bitRead(state, fleft)  ) {
-    // inside corner
-    if (bitRead(flag, obFront)) { //check for a front wall before moving forward
-      //make right turn if wall found
-      reverse(two_rotation);       //back up
-      spin(three_rotation, 1);     //turn right
-    }
-    if (li_cerror == 0) {      //no error robot in dead band drives forward
-      forward(one_rotation);      //move robot forward
-    }
-    else {
-      if (li_cerror > 0 && ls_curr < irMin) { // within 4 inches band... too close
-        digitalWrite(YELLOW_LED, HIGH); 
-        pivot(quarter_rotation, 1);   //pivot right
-        pivot(quarter_rotation, 0);   //pivot left
-        digitalWrite(YELLOW_LED, LOW); 
-      }
-      else if (li_cerror < 0 && ls_curr > irMax)  { //positive error means too far
-        Serial.println("\tlt wall: too far turn left");
-        digitalWrite(RED_LED, HIGH);  // turn on the yellow led for this function
-        pivot(quarter_rotation, 0);      //pivot left
-        pivot(quarter_rotation, 1);   //pivot right
-        digitalWrite(RED_LED, LOW);  // turn on the yellow led for this function
-      }
-    }
-  }
-  // lost walls
-  else  if (bitRead(state, wander)) {
-    stop();
-    delay(500);
-    //reverse(half_rotation);
-    spin(half_rotation, 0);
-    forward(one_rotation);
-    pivot(quarter_rotation,1);
-  }
 }
 
 /*
@@ -367,15 +287,15 @@ void wallBang() {
   Return: nothing
 */
 void wallP() {
-  if (bitRead(state,lit) {
+  if (bitRead(state,lit) && lightType != none && (!bitRead(flag, obFront) && !bitRead(flag, obLeft) && !bitRead(flag, obRight))) {
     if(lightType == fear) {
-      fear();
+      fearAction();
     } else if(lightType == aggr) {
-      aggr();
+      aggrAction();
     } else if(lightType == love) {
-      love();
+      loveAction();
     } else if(lightType == expl){
-      
+      explAction();
     }
   } else {
   // gain values are independent to turn right and left seperatley if needed
@@ -656,7 +576,7 @@ void updateIR() {
   Return: nothing
 */
 void updateLight() {
-  int left = 0, right = 0;         //declare light variables
+  float left = 0, right = 0;         //declare light variables
 
   int i = 0;
 
@@ -671,22 +591,14 @@ void updateLight() {
   right /= 5;
 
   // equations to convert to inches
-  left = (285714/(left+2257))-103;
-  right = (286714/(right+2600))-90;
-
-  // filters out negative numbers
-  if(left <= 0) {
-    left = 1;
-  }
-  if(right <= 0) {
-    right = 1;
-  }
+  left = (left-870)/(940-870);
+  right = (right-925)/(965-925);
 
   // set the current values to the inches calculated
   lli_curr = left;
   rli_curr = right;
 
-  if (right < liMax + 6 || left < liMax + 6) {  // light found within 12 inches and need to get within 4~6 inches
+  if (right > liMin || left > liMin) {  // light found within 12 inches and need to get within 4~6 inches
     bitSet(flag, lit);            //set the light
   }
   else
@@ -694,20 +606,20 @@ void updateLight() {
 
   ///////////////////////update variables
   rli_curr = right;             //log current sensor reading [right IR]
-  if ((rli_curr > liMax) | (rli_curr < liMin))
-    rli_cerror = liMax - rli_curr;  //calculate current error (too far positive, too close negative)
-  else
-    rli_cerror = 0;                  //set error to zero if robot is in dead band
-  rli_derror = rli_cerror - rli_perror; //calculate change in error
-  rli_perror = rli_cerror;            //log current error as previous error [left sonar]
+//  if ((rli_curr > liMax) | (rli_curr < liMin))
+//    rli_cerror = liMax - rli_curr;  //calculate current error (too far positive, too close negative)
+//  else
+//    rli_cerror = 0;                  //set error to zero if robot is in dead band
+//  rli_derror = rli_cerror - rli_perror; //calculate change in error
+//  rli_perror = rli_cerror;            //log current error as previous error [left sonar]
 
   lli_curr = left;                   //log current sensor reading [left sonar]
-  if ((lli_curr > liMax) | (lli_curr < liMin))
-    lli_cerror = liMax - lli_curr;   //calculate current error
-  else
-    li_cerror = 0;                  //error is zero if in deadband
-  lli_derror = lli_cerror - lli_perror; //calculate change in error
-  lli_perror = lli_cerror;                //log reading as previous error
+//  if ((lli_curr > liMax) | (lli_curr < liMin))
+//    lli_cerror = liMax - lli_curr;   //calculate current error
+//  else
+//    li_cerror = 0;                  //error is zero if in deadband
+//  lli_derror = lli_cerror - lli_perror; //calculate change in error
+//  lli_perror = lli_cerror;                //log reading as previous error
 }
 
 /*
@@ -786,13 +698,21 @@ void updateState() {
   
   Return: nothing
 */
-void fear() {
+void fearAction() {
   digitalWrite(YELLOW_LED, HIGH);   // turn on the yellow led for this function
   digitalWrite(RED_LED, HIGH);      // turn on the red led for this function
   digitalWrite(GREEN_LED, HIGH);    // turn on the green led for this function
 
-  int rightWSpeed = 100 + rli_curr;       // set the right wheel's speed
-  int leftWSpeed = 100 + lli_curr;        // set the left wheel's speed
+  int rightWSpeed; // initializes the right wheel's speed
+  int leftWSpeed;  // initializes the left wheel's speed
+    
+  if(rli_curr > lli_curr) {
+    rightWSpeed = 200 + rli_curr * 1000;   // set the right wheel's speed
+    leftWSpeed = 200;                     // set the left wheel's speed
+  } else {
+    rightWSpeed = 200;                    // set the right wheel's speed
+    leftWSpeed = 200 + lli_curr * 1000;    // set the left wheel's speed
+  }
   
   // puts above values into motor functions
   stepperRight.setCurrentPosition(0);
@@ -803,7 +723,6 @@ void fear() {
   stepperLeft.setSpeed(leftWSpeed);//set speed
   stepperRight.runSpeedToPosition();//move right motor
   stepperLeft.runSpeedToPosition();//move left motor
-  runToStop();//run until the robot reaches the target
 
   digitalWrite(YELLOW_LED, LOW);   // turn off the yellow led for this function
   digitalWrite(RED_LED, LOW);      // turn off the red led for this function
@@ -818,12 +737,20 @@ void fear() {
   
   Return: nothing
 */
-void aggr() {
+void loveAction() {
   digitalWrite(YELLOW_LED, HIGH);   // turn on the yellow led for this function
   digitalWrite(RED_LED, HIGH);      // turn on the red led for this function
 
-  int rightWSpeed = 1000 - rli_curr;       // set the right wheel's speed
-  int leftWSpeed = 1000 - lli_curr;        // set the left wheel's speed
+  int rightWSpeed; // initializes the right wheel's speed
+  int leftWSpeed;  // initializes the left wheel's speed
+
+  if(rli_curr > lli_curr) {
+    rightWSpeed = 800 - rli_curr * 800;   // set the right wheel's speed
+    leftWSpeed = 800;                     // set the left wheel's speed
+  } else {
+    rightWSpeed = 800;                    // set the right wheel's speed
+    leftWSpeed = 800 - lli_curr * 800;    // set the left wheel's speed
+  }
   
   // puts above values into motor functions
   stepperRight.setCurrentPosition(0);
@@ -834,7 +761,6 @@ void aggr() {
   stepperLeft.setSpeed(leftWSpeed);//set speed
   stepperRight.runSpeedToPosition();//move right motor
   stepperLeft.runSpeedToPosition();//move left motor
-  runToStop();//run until the robot reaches the target
 
   digitalWrite(YELLOW_LED, LOW);   // turn off the yellow led for this function
   digitalWrite(RED_LED, LOW);      // turn off the red led for this function
@@ -848,12 +774,20 @@ void aggr() {
   
   Return: nothing
 */
-void love() {
+void aggrAction() {
   digitalWrite(GREEN_LED, HIGH);    // turn on the green led for this function
   digitalWrite(YELLOW_LED, HIGH);   // turn on the yellow led for this function
 
-  int leftWSpeed = 100 + rli_curr;        // set the right wheel's speed
-  int rightWSpeed = 100 + lli_curr;       // set the left wheel's speed
+  int rightWSpeed; // initializes the right wheel's speed
+  int leftWSpeed;  // initializes the left wheel's speed
+  
+  if(lli_curr > rli_curr) {
+    rightWSpeed = 200 + lli_curr * 1000;  // set the right wheel's speed
+    leftWSpeed = 200;                     // set the left wheel's speed
+  } else {
+    rightWSpeed = 200;                    // set the right wheel's speed
+    leftWSpeed = 200 + rli_curr * 1000;   // set the left wheel's speed
+  }
   
   // puts above values into motor functions
   stepperRight.setCurrentPosition(0);
@@ -864,7 +798,6 @@ void love() {
   stepperLeft.setSpeed(leftWSpeed);//set speed
   stepperRight.runSpeedToPosition();//move right motor
   stepperLeft.runSpeedToPosition();//move left motor
-  runToStop();//run until the robot reaches the target
 
   digitalWrite(GREEN_LED, LOW);     // turn off the green led for this function
   digitalWrite(YELLOW_LED, LOW);    // turn off the yellow led for this function
@@ -878,12 +811,20 @@ void love() {
   
   Return: nothing
 */
-void expl() {
+void explAction() {
   digitalWrite(GREEN_LED, HIGH);    // turn on the green led for this function
   digitalWrite(RED_LED, HIGH);      // turn on the red led for this function
 
-  int leftWSpeed = 1000 - rli_curr;       // set the right wheel's speed
-  int rightWSpeed = 1000 - lli_curr;      // set the left wheel's speed
+  int rightWSpeed; // initializes the right wheel's speed
+  int leftWSpeed;  // initializes the left wheel's speed
+
+   if(lli_curr > rli_curr) {
+    rightWSpeed = 800 - lli_curr * 800;   // set the right wheel's speed
+    leftWSpeed = 800;                     // set the left wheel's speed
+  } else {
+    rightWSpeed = 800;                    // set the right wheel's speed
+    leftWSpeed = 800 - rli_curr * 800;    // set the left wheel's speed
+  }
   
   // puts above values into motor functions
   stepperRight.setCurrentPosition(0);
@@ -894,7 +835,6 @@ void expl() {
   stepperLeft.setSpeed(leftWSpeed);//set speed
   stepperRight.runSpeedToPosition();//move right motor
   stepperLeft.runSpeedToPosition();//move left motor
-  runToStop();//run until the robot reaches the target
 
   digitalWrite(GREEN_LED, LOW);    // turn off the green led for this function
   digitalWrite(RED_LED, LOW);      // turn off the red led for this function
