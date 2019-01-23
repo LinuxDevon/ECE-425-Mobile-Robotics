@@ -171,7 +171,8 @@ byte layers = 4;
 #define love 2  //love behavior
 #define expl 3  //explorer behavior
 #define fear 4  //fear behavior
-int lightType = fear;
+#define dock 5  //dock behavior
+int lightType = dock;
 
 
 //define PD control global variables, curr_error = current reading - setpoint, prev_error = curr_error on previous iteration
@@ -287,7 +288,9 @@ void loop()
   Return: nothing
 */
 void wallP() {
-  if (bitRead(state,lit) && lightType != none && (!bitRead(flag, obFront) && !bitRead(flag, obLeft) && !bitRead(flag, obRight))) {
+//  if (bitRead(state,lit) && lightType != none && (!bitRead(flag, obFront) && !bitRead(flag, obLeft) && !bitRead(flag, obRight))) {
+  if (bitRead(state,lit) && lightType != none) {
+//  if (lightType != none) {
     if(lightType == fear) {
       fearAction();
     } else if(lightType == aggr) {
@@ -296,6 +299,8 @@ void wallP() {
       loveAction();
     } else if(lightType == expl){
       explAction();
+    } else if(lightType == dock) {
+      dockAction();
     }
   } else {
   // gain values are independent to turn right and left seperatley if needed
@@ -306,6 +311,7 @@ void wallP() {
 
   // right wall found
   if (bitRead(state, fright)) {
+    digitalWrite(GREEN_LED, HIGH);  // turn on the green led for this function
     rightState = TRUE;  // set the state that there is a right wall when turing corners
     leftState = FALSE;
     if (bitRead(flag, obFront)) { //check for a front wall before moving
@@ -317,43 +323,35 @@ void wallP() {
       delay(200);
     }
     if (ri_cerror == 0) { // robot within 4-6 inches
-      digitalWrite(YELLOW_LED, HIGH);   // turn on the yellow led for this function
-      digitalWrite(RED_LED, HIGH);      // turn on the red led for this function
       forward(quarter_rotation);        //move robot forward
-      digitalWrite(YELLOW_LED, LOW);    // turn off the yellow led for this function
-      digitalWrite(RED_LED, LOW);       // turn off the red led for this function
     }
     else {
       if (ri_cerror > 0 && rs_curr < irMin && rs_curr > 1) {  // too close 4 ~ 2 inches aways
-        digitalWrite(YELLOW_LED, HIGH);
         pivot(r_turn, 0);      //pivot left
         delay(200);
         pivot(r_turn, 1);     //pivot right to straighten up
         delay(200);
-        digitalWrite(YELLOW_LED, LOW);
       }
       else if (ri_cerror > 0 && rs_curr <= 1) { // way to close 0~2 inches
-        digitalWrite(YELLOW_LED, HIGH);
         pivot(one_rotation, 1);   // pivot right 
         delay(200);
         reverse(eighth_rotation); // backup at the pivot angle
         delay(200);
         pivot(-one_rotation, 1);  // straigten back up pivot left
         delay(200);
-        digitalWrite(YELLOW_LED, LOW);
       }
       else if (ri_cerror < 0 && rs_curr > irMax) {     //positive error means too far > 6 inches
-        digitalWrite(RED_LED, HIGH);
         pivot(r_turn, 1);      //pivot right
         delay(200);
         pivot(r_turn, 0);   //pivot left to straighten up
         delay(200);
-        digitalWrite(RED_LED, LOW);
       }
     }
+    digitalWrite(GREEN_LED, LOW);  // turn off the green led for this function
   }
   // found left wall
   else if (bitRead(state, fleft)  ) {
+    digitalWrite(GREEN_LED, HIGH);  // turn on the green led for this function
     rightState = FALSE; 
     leftState = TRUE;   // indicate that a left wall was found to tell corners
     if (bitRead(flag, obFront)) { //check for a front wall before moving forward
@@ -365,42 +363,33 @@ void wallP() {
       delay(200);
     }
     if (li_cerror == 0) {   // robot within 4-6 inches
-      digitalWrite(YELLOW_LED, HIGH);  // turn on the yellow led for this function
-      digitalWrite(GREEN_LED, HIGH);  // turn on the green led for this function
       forward(quarter_rotation);      //move robot forward
-      digitalWrite(YELLOW_LED, LOW);  // turn off the yellow led for this function
-      digitalWrite(GREEN_LED, LOW);  // turn off the green led for this function
     }
     else {
       if (li_cerror > 0 && ls_curr < irMin && ls_curr > 1) { // too close within 2~4 inches
-        digitalWrite(YELLOW_LED, HIGH);  // turn on the yellow led for this function
         pivot(l_turn, 1);      //pivot right
         delay(200);
         pivot(l_turn, 0);     //pivot left
         delay(200);
-        digitalWrite(YELLOW_LED, LOW);  // turn on the yellow led for this function
       }
       else if (li_cerror > 0 && ls_curr <= 1) {   // way too close within 0~2 inches
-        digitalWrite(YELLOW_LED, HIGH);
         pivot(one_rotation, 0);     // pivot left  
         delay(200);
         reverse(eighth_rotation);   // backup at the pivoted angle
         delay(200);
         pivot(-one_rotation, 0);    // straighten back up by pivoting right
         delay(200);
-        digitalWrite(YELLOW_LED, LOW);
       }
       else if (li_cerror < 0 && ls_curr > irMax)  { // too far >6 inches
-        digitalWrite(RED_LED, HIGH);  // turn on the red led for this function
         pivot(l_turn, 0);      //pivot left
         delay(200);
         pivot(l_turn, 1);   //pivot right
         delay(200);
-        digitalWrite(RED_LED, LOW);  // turn off the red led for this function
       }
     }
+    digitalWrite(GREEN_LED, LOW);  // turn off the green led for this function
   }
-  // follow hallway
+//   follow hallway
   else if (bitRead(state, center) ) {
     digitalWrite(RED_LED, HIGH);  // turn on the red led for this function
     digitalWrite(GREEN_LED, HIGH);  // turn on the green led for this function
@@ -426,19 +415,19 @@ void wallP() {
 
     // front wall found need to turn and follow the wall
   } else if (bitRead(flag, obFront) && !bitRead(flag, obLeft) && !bitRead(flag, obRight)) {
-    digitalWrite(RED_LED, HIGH);    // turn on the red led for this function
     digitalWrite(GREEN_LED, HIGH);  // turn on the green led for this function
     reverse(eighth_rotation);       //back up
     delay(200);
     spin(half_rotation, 1);         //turn right
-    digitalWrite(RED_LED, LOW);     // turn off the red led for this function
     digitalWrite(GREEN_LED, LOW);   // turn off the green led for this function
   } else  if (bitRead(state, wander)) { // wander, no walls found
     digitalWrite(GREEN_LED, HIGH);  // turn on the green led for this function
+    digitalWrite(YELLOW_LED, HIGH);  // turn on the yellow led for this function
     rightState = FALSE;
     leftState = FALSE;
     randomWander();
     digitalWrite(GREEN_LED, LOW);  // turn off the green led for this function
+    digitalWrite(YELLOW_LED, LOW);  // turn off the yellow led for this function
   } else if(!bitRead(state, fright) && rightState == TRUE) {   // try and turn to find the wall, outside corner
     counter++;    // increase the number of attempts to find wall
     delay(200);
@@ -593,6 +582,18 @@ void updateLight() {
   // equations to convert to inches
   left = (left-870)/(940-870);
   right = (right-925)/(965-925);
+  if(left > 1) {
+    left = 1;
+  }
+  if(right > 1) {
+    right = 1;
+  }
+  if(left < 0) {
+    left = 0;
+  }
+  if(right < 0) {
+    right = 0;
+  }
 
   // set the current values to the inches calculated
   lli_curr = left;
@@ -751,6 +752,11 @@ void loveAction() {
     rightWSpeed = 800;                    // set the right wheel's speed
     leftWSpeed = 800 - lli_curr * 800;    // set the left wheel's speed
   }
+
+//  Serial.print("Right: ");
+//  Serial.print(rli_curr);
+//  Serial.print("Left: ");
+//  Serial.println(lli_curr);
   
   // puts above values into motor functions
   stepperRight.setCurrentPosition(0);
@@ -838,6 +844,44 @@ void explAction() {
 
   digitalWrite(GREEN_LED, LOW);    // turn off the green led for this function
   digitalWrite(RED_LED, LOW);      // turn off the red led for this function
+}
+
+/*
+  Description: 
+    Makes the robot move to a light and dock at it before moving back
+
+  Input: nothing
+  
+  Return: nothing
+*/
+void dockAction() {
+  digitalWrite(YELLOW_LED, HIGH);    // turn on the yellow led for this function
+
+  int rightWSpeed; // initializes the right wheel's speed
+  int leftWSpeed;  // initializes the left wheel's speed
+
+   if(rli_curr > lli_curr + 0.20) {
+    rightWSpeed = 800 - rli_curr * 800;   // set the right wheel's speed
+    leftWSpeed = 800;                     // set the left wheel's speed
+  } else if (rli_curr < lli_curr - 0.20) {
+    rightWSpeed = 800;                    // set the right wheel's speed
+    leftWSpeed = 800 - rli_curr * 800;    // set the left wheel's speed
+  } else {
+    rightWSpeed = 800;                    // set the right wheel's speed
+    leftWSpeed = 800;                     // set the left wheel's speed
+  }
+  
+  // puts above values into motor functions
+  stepperRight.setCurrentPosition(0);
+  stepperLeft.setCurrentPosition(0);
+  stepperRight.moveTo(eighth_rotation);//move distance
+  stepperLeft.moveTo(eighth_rotation);//move distance
+  stepperRight.setSpeed(rightWSpeed);//set speed
+  stepperLeft.setSpeed(leftWSpeed);//set speed
+  stepperRight.runSpeedToPosition();//move right motor
+  stepperLeft.runSpeedToPosition();//move left motor
+
+  digitalWrite(YELLOW_LED, LOW);    // turn off the yellow led for this function
 }
 
 /*
@@ -961,7 +1005,6 @@ void spin(int rot, int dir) {
 void randomWander() {
    digitalWrite(GREEN_LED, HIGH);  // turn on the green led for this function
 
-
   // randomly decides the signs of the speed and distance values
   long rightDSign = random(1,1000);
   if(rightDSign % 2 == 1) {
@@ -1022,7 +1065,9 @@ void runToStop ( void ) {
   int runNow = 1;
   Timer1.stop();  // added in to stop interrupts to allow full movement
 
-  while (runNow) {
+//  while (runNow && !bitRead(state, lit)) {
+  while(runNow) {
+//    updateLight();
     if (!stepperRight.run()) {
       bitClear(state, movingR);  // clear bit for right motor moving
       stepperRight.stop();//stop right motor
