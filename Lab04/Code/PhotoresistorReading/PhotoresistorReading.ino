@@ -33,10 +33,10 @@ int leftSensor, rightSensor;
     rightSensor += analogRead(photoRight);
     leftSensor += analogRead(photoLeft);
   }
-  Serial.print("Right Sensor: ");
-  Serial.print(rightSensor / 5);
-  Serial.print(" Left Sensor: ");
-  Serial.println(leftSensor / 5);
+  Serial.print("Left Sensor: ");
+  Serial.print(leftSensor / 5);
+  Serial.print("      Right Sensor: ");
+  Serial.println(rightSensor / 5);
 
   rightSensor = 0;
   leftSensor = 0;

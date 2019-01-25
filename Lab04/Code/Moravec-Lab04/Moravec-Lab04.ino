@@ -115,7 +115,7 @@ NewPing sonarRt(snrRight, snrRight);  //create an instance of the right sonar
 //define sensor constants and variables
 #define irMin    4      // IR minimum threshold for wall 4 inches
 #define irMax    6      // IR maximum threshold for wall 6 inches
-#define liMin    0.5   // light minimum threshold 12 inches
+#define liMin    0.25   // light minimum threshold 12 inches
 
 int irFrontArray[5] = {0, 0, 0, 0, 0};//array to hold 5 front IR readings
 int irRearArray[5] = {0, 0, 0, 0, 0}; //array to hold 5 back IR readings
@@ -174,6 +174,13 @@ byte layers = 4;
 #define dock 5  //dock behavior
 int lightType = dock;
 
+#define MIN_LIGHT_THRESHOLD_LEFT 600
+#define MAX_LIGHT_THRESHOLD_LEFT 850
+
+#define MIN_LIGHT_THRESHOLD_RIGHT 750
+#define MAX_LIGHT_THRESHOLD_RIGHT 950
+
+long lightCounter = 0;
 
 //define PD control global variables, curr_error = current reading - setpoint, prev_error = curr_error on previous iteration
 //store previous error to calculate derror = curr_error-prev_error, side_derror = side front sensor - side back sensor
@@ -580,8 +587,8 @@ void updateLight() {
   right /= 5;
 
   // equations to convert to inches
-  left = (left-870)/(940-870);
-  right = (right-925)/(965-925);
+  left = (left-MIN_LIGHT_THRESHOLD_LEFT)/(MAX_LIGHT_THRESHOLD_LEFT-MIN_LIGHT_THRESHOLD_LEFT);
+  right = (right-MIN_LIGHT_THRESHOLD_RIGHT)/(MAX_LIGHT_THRESHOLD_RIGHT-MIN_LIGHT_THRESHOLD_RIGHT);
   if(left > 1) {
     left = 1;
   }
@@ -859,16 +866,35 @@ void dockAction() {
 
   int rightWSpeed; // initializes the right wheel's speed
   int leftWSpeed;  // initializes the left wheel's speed
+  int i;
 
-   if(rli_curr > lli_curr + 0.20) {
-    rightWSpeed = 800 - rli_curr * 800;   // set the right wheel's speed
-    leftWSpeed = 800;                     // set the left wheel's speed
-  } else if (rli_curr < lli_curr - 0.20) {
-    rightWSpeed = 800;                    // set the right wheel's speed
-    leftWSpeed = 800 - rli_curr * 800;    // set the left wheel's speed
+   if(rli_curr > lli_curr + 0.05) {
+    leftWSpeed = 100 + rli_curr * 800;   // set the right wheel's speed
+    rightWSpeed = 100;                     // set the left wheel's speed
+  } else if (rli_curr < lli_curr - 0.05) {
+    leftWSpeed = 100;                    // set the right wheel's speed
+    rightWSpeed = 100 + rli_curr * 800;    // set the left wheel's speed
+  } else if(rli_curr > 0.99 || lli_curr > 0.99){
+    rightWSpeed = 600;                    // set the right wheel's speed
+    leftWSpeed = 600;                     // set the left wheel's speed
+    delay(1000);
+    spin(one_rotation, 1);
+    for(i = 0; i < lightCounter; i++) {
+//      forward(eight_rotation);
+      stepperRight.setCurrentPosition(0);
+      stepperLeft.setCurrentPosition(0);
+      stepperRight.moveTo(eighth_rotation);//move distance
+      stepperLeft.moveTo(eighth_rotation);//move distance
+      stepperRight.setSpeed(rightWSpeed);//set speed
+      stepperLeft.setSpeed(leftWSpeed);//set speed
+      stepperRight.runSpeedToPosition();//move right motor
+      stepperLeft.runSpeedToPosition();//move left motor
+    }
+    lightCounter = 0;
+    spin(one_rotation, 1);
   } else {
-    rightWSpeed = 800;                    // set the right wheel's speed
-    leftWSpeed = 800;                     // set the left wheel's speed
+    rightWSpeed = 600;                    // set the right wheel's speed
+    leftWSpeed = 600;                     // set the left wheel's speed
   }
   
   // puts above values into motor functions
@@ -881,6 +907,8 @@ void dockAction() {
   stepperRight.runSpeedToPosition();//move right motor
   stepperLeft.runSpeedToPosition();//move left motor
 
+  lightCounter++;
+  
   digitalWrite(YELLOW_LED, LOW);    // turn off the yellow led for this function
 }
 
