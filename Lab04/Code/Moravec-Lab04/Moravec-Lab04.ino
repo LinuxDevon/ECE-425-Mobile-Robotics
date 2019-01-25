@@ -1,40 +1,33 @@
 /*Moravec-Lab04.ino
   Author: Devon Adair and Hunter LaMantia
-  Date: 1/16/19
+  Date: 1/25/19
 
-  This lab was trying to follow walls using bang-bang control and a p/pd control.
-  bang-bang was a more swingy follow method that was rough. The P control is a 
-  proportianal controller and takes error into account to proportionally adjust based
-  how far away from the wall the robot is. The P controller was smooth enough where we
-  didn't need to have the Derivative portion.
+  This lab was trying to follow walls and go to a light to dock the robot and return on the same 
+  path to follow the wall again. Also in this lab we created the 4 Braitenberg light behaviors:
+  love, fear, aggression, and explorer. These are four behaviors are in the functions: 
+  fearAction(),loveAction(),aggrAction(),explAction(). These were demonstrated during the first part
+  of the lab.
+
+  Next we demonstrated the wall following which used last weeks Proportional controller but with a dock
+  action. All of the code is still the same we just added the dockAction() function when there is 
+  light detected to set the "lit" state. We used light levels we read from the prelab to get an idea
+  of the thresholds for the photoresistors. This then turned into a percentage of light which we tuned
+  the amount we needed to see when we trip the sensor.
+
+  The different behaviors and the dock action are determined by a variable that tells which action to
+  do and needs to be changed at the start of the program.
+
+  We also added the function updateLight() which updates the global variables of how much light we see
+  on the photoresistors. Other than that all other functions are same as the previous lab.
   
-  We modified wallBang() to support the following of wall roughly. The movement wasn't smooth and was
-  jerky.
-  We modified updateIR() to convert the raw values to inches to make it easier to tune thresholds.
-
-  We didn't use sonar due to it not working last lab.
-
-  wallP() was the function that we created for our proportional control. It is based on
-  wallBang() but the distances it adjusts are proportional to the error or distance from the wall.
-  There is a gain value that we tuned to smooth out the movement. It also handles corners, hallways
-  and obstacles. When it looses a wall it tries three times then goes to random wander if it looses it.
-
-  We modified runToStop() to disable the timer and enable when done. We found that it wasn't returing 
-  correctly and didn't finish the movements we gave it correctly. This fixed the issues and allowed us
-  to handle corners correctly.
-
-  The last function we add was randomWander which we copied from last lab. It just picks random
-  directions to go and executes.
-
-  All other functions were given and unmodifed.
-
-  Layer0 - our IR sensors recieving data and determinine if there is something there or not. It also
-           involves avoid obstacle which needs to happen when following a wall or wandering.
-  Layer1 - Follow Wall which is done with bang-bang or P that we created. This is when this is just one
-           wall.
-  Layer2 - Follow Center is when it detects a wall on either side which. This is done with minor adjustments
+  Layer0 - our IR and Photo sensors recieving data and determinine if there is something there or not. It also
+           involves avoid obstacle which needs to happen when following a wall or wandering or moving to a light.
+  Layer1 - Follow the light or dock action happens and overrides the wall following and wandering. It will do
+           one of the four light behaviors or dock depending on what you tell it at the start of the program. 
+  Layer2 - Follow Wall which is done with bang-bang or P that we created. This is when this is just one
+           wall. Follow Center is when it detects a wall on either side which. This is done with minor adjustments
            that are proportional to each wall.
-  Layer3 - This layer is random wander where if we loose a wall move around to find it or another wall.  
+  Layer4 - This layer is random wander where if we loose a wall move around to find it or another wall.  
   
   Hardware Connections:
   Stepper Enable          Pin 48
@@ -115,7 +108,7 @@ NewPing sonarRt(snrRight, snrRight);  //create an instance of the right sonar
 //define sensor constants and variables
 #define irMin    4      // IR minimum threshold for wall 4 inches
 #define irMax    6      // IR maximum threshold for wall 6 inches
-#define liMin    0.25   // light minimum threshold 12 inches
+#define liMin    0.20   // light minimum threshold in percentage
 
 int irFrontArray[5] = {0, 0, 0, 0, 0};//array to hold 5 front IR readings
 int irRearArray[5] = {0, 0, 0, 0, 0}; //array to hold 5 back IR readings
@@ -172,15 +165,16 @@ byte layers = 4;
 #define expl 3  //explorer behavior
 #define fear 4  //fear behavior
 #define dock 5  //dock behavior
-int lightType = dock;
+int lightType = dock; // pick the behavior you want the robot to do
 
+// thresholds based on experimental data 
 #define MIN_LIGHT_THRESHOLD_LEFT 600
-#define MAX_LIGHT_THRESHOLD_LEFT 850
+#define MAX_LIGHT_THRESHOLD_LEFT 825
 
 #define MIN_LIGHT_THRESHOLD_RIGHT 750
 #define MAX_LIGHT_THRESHOLD_RIGHT 950
 
-long lightCounter = 0;
+long lightCounter = 0;  // the number of times it moved to the light
 
 //define PD control global variables, curr_error = current reading - setpoint, prev_error = curr_error on previous iteration
 //store previous error to calculate derror = curr_error-prev_error, side_derror = side front sensor - side back sensor
@@ -278,26 +272,27 @@ void loop()
   Description: 
     Follows walls using a proportional control. This means that it turns proportional to the error
     which is the distnace minus the 4-6 inch band it is trying to stay in. There is a gain value 
-    that is adjusted by us to smooth the robot.
+    that is adjusted by us to smooth the robot. If in dock mode it moves to the light, stops, and turns
+    around and tries to go back where it left. There are also the 4 behaviors that are used and treat
+    obstacles as walls but just turn off attempting to find the wall when it looses it.
 
-  Yellow,Red LED        - within 4-6 inches
-  Yellow LED            - too close 2-4 inches
-  Green,Yellow,Red LED  - follow center
-  Red LED               - too far > 6 inches away
-  Red,Green LED         - Front wall found
-  Red,Yellow LED        - right wall follow
-  Green,Yellow LED      - left wall follow 
-  Green LED             - random wander
-  No LED                - wall lost
-  
+    DOCKING LEDS:
+    Green LED - following wall
+    Red LED - returning back to wall
+    Yellow LED - follow light
+
+    ACTION LEDS:
+    Fear - Red, Green, Yellow
+    Love - Yellow, Red
+    Aggression - Yellow, Green
+    Explorer - Green, Red
+    
   Input: nothing
   
   Return: nothing
 */
 void wallP() {
-//  if (bitRead(state,lit) && lightType != none && (!bitRead(flag, obFront) && !bitRead(flag, obLeft) && !bitRead(flag, obRight))) {
-  if (bitRead(state,lit) && lightType != none) {
-//  if (lightType != none) {
+  if (bitRead(state,lit) && lightType != none) {  // if there is light and we don't have the behaviors turned off
     if(lightType == fear) {
       fearAction();
     } else if(lightType == aggr) {
@@ -565,7 +560,7 @@ void updateIR() {
 /*
   Description: 
     Update the sensor data from the light sensor. Polling left and right sensors.
-    Modified from original to use inches instead of raw values
+    Modified from original to a percentage of light seen.
 
   Input: nothing
   
@@ -586,9 +581,11 @@ void updateLight() {
   left /= 5;
   right /= 5;
 
-  // equations to convert to inches
+  // equations to convert to a percentage
   left = (left-MIN_LIGHT_THRESHOLD_LEFT)/(MAX_LIGHT_THRESHOLD_LEFT-MIN_LIGHT_THRESHOLD_LEFT);
   right = (right-MIN_LIGHT_THRESHOLD_RIGHT)/(MAX_LIGHT_THRESHOLD_RIGHT-MIN_LIGHT_THRESHOLD_RIGHT);
+
+  // get rid of stray/ garbage data
   if(left > 1) {
     left = 1;
   }
@@ -606,28 +603,15 @@ void updateLight() {
   lli_curr = left;
   rli_curr = right;
 
-  if (right > liMin || left > liMin) {  // light found within 12 inches and need to get within 4~6 inches
+  if (right > liMin || left > liMin) {  // light found within the percentage band
     bitSet(flag, lit);            //set the light
   }
   else
     bitClear(flag, lit);          //clear the light
 
   ///////////////////////update variables
-  rli_curr = right;             //log current sensor reading [right IR]
-//  if ((rli_curr > liMax) | (rli_curr < liMin))
-//    rli_cerror = liMax - rli_curr;  //calculate current error (too far positive, too close negative)
-//  else
-//    rli_cerror = 0;                  //set error to zero if robot is in dead band
-//  rli_derror = rli_cerror - rli_perror; //calculate change in error
-//  rli_perror = rli_cerror;            //log current error as previous error [left sonar]
-
-  lli_curr = left;                   //log current sensor reading [left sonar]
-//  if ((lli_curr > liMax) | (lli_curr < liMin))
-//    lli_cerror = liMax - lli_curr;   //calculate current error
-//  else
-//    li_cerror = 0;                  //error is zero if in deadband
-//  lli_derror = lli_cerror - lli_perror; //calculate change in error
-//  lli_perror = lli_cerror;                //log reading as previous error
+  rli_curr = right;    //log current sensor reading [right Photoresistor]
+  lli_curr = left;    //log current sensor reading [left Photoresistor]
 }
 
 /*
@@ -759,12 +743,7 @@ void loveAction() {
     rightWSpeed = 800;                    // set the right wheel's speed
     leftWSpeed = 800 - lli_curr * 800;    // set the left wheel's speed
   }
-
-//  Serial.print("Right: ");
-//  Serial.print(rli_curr);
-//  Serial.print("Left: ");
-//  Serial.println(lli_curr);
-  
+ 
   // puts above values into motor functions
   stepperRight.setCurrentPosition(0);
   stepperLeft.setCurrentPosition(0);
@@ -855,7 +834,7 @@ void explAction() {
 
 /*
   Description: 
-    Makes the robot move to a light and dock at it before moving back
+    Makes the robot move to a light and dock at it before moving back to follow the wall again
 
   Input: nothing
   
@@ -868,18 +847,20 @@ void dockAction() {
   int leftWSpeed;  // initializes the left wheel's speed
   int i;
 
-   if(rli_curr > lli_curr + 0.05) {
-    leftWSpeed = 100 + rli_curr * 800;   // set the right wheel's speed
-    rightWSpeed = 100;                     // set the left wheel's speed
-  } else if (rli_curr < lli_curr - 0.05) {
-    leftWSpeed = 100;                    // set the right wheel's speed
-    rightWSpeed = 100 + rli_curr * 800;    // set the left wheel's speed
-  } else if(rli_curr > 0.99 || lli_curr > 0.99){
-    rightWSpeed = 600;                    // set the right wheel's speed
-    leftWSpeed = 600;                     // set the left wheel's speed
-    delay(1000);
-    spin(one_rotation, 1);
-    for(i = 0; i < lightCounter; i++) {
+   if(rli_curr > lli_curr + 0.10) { // right is greater than left within 10 %
+    leftWSpeed = 100 + rli_curr * 800;   // set the left wheel's speed
+    rightWSpeed = 100;                     // set the right wheel's speed
+  } else if (rli_curr < lli_curr - 0.10) {  // left is greater than right within 10 %
+    leftWSpeed = 100;                    // set the left wheel's speed
+    rightWSpeed = 100 + rli_curr * 800;    // set the right wheel's speed
+  } else if(rli_curr > 0.99 || lli_curr > 0.99){  // The light source is close so stop and follow path  
+    digitalWrite(YELLOW_LED, LOW);    // turn on the yellow led for this function
+    digitalWrite(RED_LED, HIGH);    // turn on the red led for this function
+    rightWSpeed = 600;              // set the right wheel's speed
+    leftWSpeed = 600;               // set the left wheel's speed
+    delay(1000);      // stop for a second
+    spin(one_rotation, 1);    // turn 180
+    for(i = 0; i < lightCounter; i++) { // go back the number of steps we came to the light.
 //      forward(eight_rotation);
       stepperRight.setCurrentPosition(0);
       stepperLeft.setCurrentPosition(0);
@@ -891,8 +872,9 @@ void dockAction() {
       stepperLeft.runSpeedToPosition();//move left motor
     }
     lightCounter = 0;
-    spin(one_rotation, 1);
-  } else {
+    spin(one_rotation, 1);    // spin back the original direction
+    digitalWrite(RED_LED, LOW);    // turn off the red led for this function
+  } else {    // light percentage is even go forward
     rightWSpeed = 600;                    // set the right wheel's speed
     leftWSpeed = 600;                     // set the left wheel's speed
   }
@@ -907,7 +889,7 @@ void dockAction() {
   stepperRight.runSpeedToPosition();//move right motor
   stepperLeft.runSpeedToPosition();//move left motor
 
-  lightCounter++;
+  lightCounter++;   // count a step to the light
   
   digitalWrite(YELLOW_LED, LOW);    // turn off the yellow led for this function
 }
