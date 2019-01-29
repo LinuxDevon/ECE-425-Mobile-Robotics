@@ -240,86 +240,22 @@ void setup()
  */
 void loop()
 {
-//  wallBang();           //wall following bang-bang control
-  wallP();            //wall following proportional control
+//  wallP();            //wall following proportional control
+  topo("SRLT");
 }
 
 /*
   Description: 
-    uses bang-bang control to do a rough wall follow. It makes minor precalculated
-    movements to adjusts either right or left to keep within the 4-6 inch band.
-    If no walll is found it random wanders to find the wall. 
-
-    Yellow LED - too close to the wall
-    Red LED - too far away from the wall
-
+    Follows a set of instructions to follow paths. This means that it makes a specific
+    sequence of turns and terminates.
+  
   Input: nothing
   
   Return: nothing
 */
-void wallBang() {
-  // The right wall found
-  if (bitRead(state, fright)) {
-    // Inside corner
-    if (bitRead(flag, obFront)) { //check for a front wall before moving
-      //make left turn if wall found
-      reverse(two_rotation);     //back up
-      spin(three_rotation, 0);   //turn left
-    }
-    if (ri_cerror == 0) {   //no error, robot in deadband
-      forward(three_rotation);            //move robot forward
-    }
-    else {  // Either too close or too far
-      if (ri_cerror > 0 && rs_curr < irMin) { // Within 4 inches of wall
-        digitalWrite(YELLOW_LED, HIGH);
-        pivot(quarter_rotation, 0);   //pivot left
-        pivot(quarter_rotation, 1);   //pivot right to straighten up
-        digitalWrite(YELLOW_LED, LOW);
-      }
-      else if (ri_cerror < 0 && rs_curr > irMax) {  // outside of the 6 inches
-        digitalWrite(RED_LED, HIGH);
-        pivot(quarter_rotation, 1);   //pivot right
-        pivot(quarter_rotation, 0);   //pivot left to straighten up
-        digitalWrite(RED_LED, LOW);
-      }
-    }
-  }
-  // The left wall found
-  else if (bitRead(state, fleft)  ) {
-    // inside corner
-    if (bitRead(flag, obFront)) { //check for a front wall before moving forward
-      //make right turn if wall found
-      reverse(two_rotation);       //back up
-      spin(three_rotation, 1);     //turn right
-    }
-    if (li_cerror == 0) {      //no error robot in dead band drives forward
-      forward(one_rotation);      //move robot forward
-    }
-    else {
-      if (li_cerror > 0 && ls_curr < irMin) { // within 4 inches band... too close
-        digitalWrite(YELLOW_LED, HIGH); 
-        pivot(quarter_rotation, 1);   //pivot right
-        pivot(quarter_rotation, 0);   //pivot left
-        digitalWrite(YELLOW_LED, LOW); 
-      }
-      else if (li_cerror < 0 && ls_curr > irMax)  { //positive error means too far
-        Serial.println("\tlt wall: too far turn left");
-        digitalWrite(RED_LED, HIGH);  // turn on the yellow led for this function
-        pivot(quarter_rotation, 0);      //pivot left
-        pivot(quarter_rotation, 1);   //pivot right
-        digitalWrite(RED_LED, LOW);  // turn on the yellow led for this function
-      }
-    }
-  }
-  // lost walls
-  else  if (bitRead(state, wander)) {
-    stop();
-    delay(500);
-    //reverse(half_rotation);
-    spin(half_rotation, 0);
-    forward(one_rotation);
-    pivot(quarter_rotation,1);
-  }
+void topo(instr) {
+  instr1 = instr[1];
+  
 }
 
 /*
