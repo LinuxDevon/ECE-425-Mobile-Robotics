@@ -194,7 +194,6 @@ int leftState;    // dtects if the left wall was ever found
 int counter = 3;  // count how many times we try to find the wall. 3 means we are in random wander to start
 
 int topo_check = 1; // counts current state if topological tracking is active
-bool topo_done = FALSE; // tracks whether it's time to exit() topological navigation
 
 #define baud_rate 9600  //set serial communication baud rate
 
@@ -296,7 +295,7 @@ void loop()
 
 void topo(char *instr) {
   char topo_current = instr[topo_check]; // tracks current instruction
-  if (bitRead(state, center) && topo_done == FALSE) { // initiates wall following
+  if (bitRead(state, center)) { // initiates wall following
     if (((ri_cerror == 0) && (li_cerror == 0)) || (derror == 0)) { // centered in the hallway
       forward(half_rotation);          //drive robot forward
     } else {
