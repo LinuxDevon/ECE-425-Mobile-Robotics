@@ -58,7 +58,7 @@
 #include <NewPing.h> //include sonar library
 #include <TimerOne.h>//include timer interrupt library
 
-//sets up wireless transeiver
+//sets up wireless transceiver
 #include <SPI.h> //include serial peripheral interface library
 #include <RF24.h> //include wireless transceiver library
 #include <nRF24L01.h> //include wireless transceiver library
