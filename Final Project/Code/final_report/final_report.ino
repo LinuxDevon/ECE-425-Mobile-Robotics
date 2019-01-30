@@ -194,6 +194,41 @@ int counter = 3;  // count how many times we try to find the wall. 3 means we ar
 
 #define baud_rate 9600  //set serial communication baud rate
 
+// O Map defines
+#define OBSTACLE  99
+#define EMPTY     0
+
+// T Map defines
+#define N     B0001 
+#define E     B0010
+#define NE    B0011
+#define S     B0100
+#define NS    B0101
+#define SE    B0110
+#define NSE   B0111
+#define W     B1000
+#define NW    B1001
+#define WE    B1010
+#define NWE   B1011
+#define SW    B1100
+#define SNW   B1101
+#define SWE   B1110
+#define NSWE  B1111
+
+volatile byte Tmap[4][4] = {{NW, NSWE, NSWE, NE},
+                            {W, NS, NS, E},
+                            {WE, NSWE, NSWE, WE},
+                            {SWE, SNW, NS, SE}};;
+volatile byte Omap[9][9] = {{0, 0, 0, 0, 0, 0, 0, 0, 0},
+                             {0, 0, 0, 0, 0, 0, 0, 0, 0},
+                             {0, 0, 0, 0, 0, 0, 0, 0, 0},
+                             {0, 0, 0, 0, 0, 0, 0, 0, 0},
+                             {0, 0, 0, 0, 0, 0, 0, 0, 0},
+                             {0, 0, 0, 0, 0, 0, 0, 0, 0},
+                             {0, 0, 0, 0, 0, 0, 0, 0, 0},
+                             {0, 0, 0, 0, 0, 0, 0, 0, 0},
+                             {0, 0, 0, 0, 0, 0, 0, 0, 0}};
+
 /*
  * Initialization code
  */
@@ -231,8 +266,10 @@ void setup()
   pinMode(GREEN_LED, OUTPUT);
   pinMode(YELLOW_LED, OUTPUT);
 
+  CalcWavefront(0,0);
   // start in wander state
   bitSet(flag, wander);
+
 }
 
 /*
@@ -241,7 +278,7 @@ void setup()
 void loop()
 {
 //  wallP();            //wall following proportional control
-  topo("SRLT");
+//  topo("SRLT");
 }
 
 /*
@@ -253,8 +290,78 @@ void loop()
   
   Return: nothing
 */
-void topo(instr) {
-  instr1 = instr[1];
+//void topo(instr) {
+//  instr1 = instr[1];
+//  
+//}
+
+/*
+  Description: 
+    
+  
+  Input: nothing
+  
+  Return: nothing
+*/
+void CalcWavefront(int row, int column) {
+  int Trow,Tcol,Orow,Ocol;
+
+    // Make the o map based on the t map
+  for(Trow = 0; Trow < 4; Trow++) {  // rows
+    for(Tcol = 0; Tcol < 4; Tcol++) {  // columns
+      Orow = (Trow * 2) + 1;
+      Ocol = (Tcol * 2) + 1;
+      // NORTH
+      if((Tmap[Trow][Tcol] & B0001) == B0001) {
+        Omap[Orow-1][Ocol] = OBSTACLE;
+        Omap[Orow-1][Ocol+1] = OBSTACLE;
+        Omap[Orow-1][Ocol-1] = OBSTACLE;
+      }    
+      if((Tmap[Trow][Tcol] & B0010) == B0010) {  // EAST
+        Omap[Orow][Ocol+1] = OBSTACLE;
+        Omap[Orow+1][Ocol+1] = OBSTACLE;
+        Omap[Orow-1][Ocol+1] = OBSTACLE;
+      }
+      if((Tmap[Trow][Tcol] & B0100) == B0100) { // SOUTH
+        Omap[Orow+1][Ocol] = OBSTACLE;
+        Omap[Orow+1][Ocol+1] = OBSTACLE;
+        Omap[Orow+1][Ocol-1] = OBSTACLE;
+      }
+      if((Tmap[Trow][Tcol] & B1000) == B1000) {  // WEST
+        Omap[Orow][Ocol-1] = OBSTACLE;
+        Omap[Orow+1][Ocol-1] = OBSTACLE;
+        Omap[Orow-1][Ocol-1] = OBSTACLE;
+      }
+    }
+  } 
+  printArray();
+}
+
+//Debugging
+void printArray() {
+  int col, row;
+  for(row = 0; row < 9; row++){
+    Serial.print("[");
+    for(col = 0; col < 9; col++) {
+      if(Omap[row][col] == 0) {
+        Serial.print("00");
+      } else {
+        Serial.print(Omap[row][col]);
+      }
+      Serial.print(", ");
+    }
+    Serial.println("]");  
+  }
+}
+/*
+  Description: 
+    
+  
+  Input: nothing
+  
+  Return: nothing
+*/
+void FollowPath() {
   
 }
 
