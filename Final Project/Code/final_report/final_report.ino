@@ -87,8 +87,8 @@ NewPing sonarRt(snrRight, snrRight);  //create an instance of the right sonar
 #define enableLED 13            //stepper enabled LED
 #define robot_spd 250           //set robot speed
 #define max_accel 10000         //maximum robot acceleration
-#define max_spd 500            //maximum robot speed
-#define eighth_rotation 100    //stepper quarter rotation
+#define max_spd 500             //maximum robot speed
+#define eighth_rotation 100     //stepper quarter rotation
 #define quarter_rotation 200    //stepper quarter rotation
 #define half_rotation 400       //stepper half rotation
 #define one_rotation  800       //stepper motor runs in 1/4 steps so 800 steps is one full rotation
@@ -96,8 +96,8 @@ NewPing sonarRt(snrRight, snrRight);  //create an instance of the right sonar
 #define three_rotation 2400     //stepper rotation 3 rotations
 #define four_rotation 3200      //stepper rotation 4 rotations
 #define five_rotation 4000      //stepper rotation 5 rotations
-#define six_rotation 4800      //stepper rotation 6 rotations
-#define eight_rotation 6400      //stepper rotation 8 rotations
+#define six_rotation 4800       //stepper rotation 6 rotations
+#define eight_rotation 6400     //stepper rotation 8 rotations
 
 // -- LED Pins -- //
 #define RED_LED 14
@@ -111,6 +111,7 @@ NewPing sonarRt(snrRight, snrRight);  //create an instance of the right sonar
 //define sensor constants and variables
 #define irMin    4   // IR minimum threshold for wall 4 inches
 #define irMax    6   // IR maximum threshold for wall 6 inches
+#define topoMax  12  // IR maximum threshold for topological navvigation
 
 int irFrontArray[5] = {0, 0, 0, 0, 0};//array to hold 5 front IR readings
 int irRearArray[5] = {0, 0, 0, 0, 0}; //array to hold 5 back IR readings
@@ -163,10 +164,10 @@ byte layers = 4;
 //store previous error to calculate derror = curr_error-prev_error, side_derror = side front sensor - side back sensor
 //store derror = difference between left and right error (used for hall follow to center the robot)
 
-int ls_curr;    //left sonar current reading
-int li_curr;    //left ir current reading
-int rs_curr;    //right sonar current reading
-int ri_curr;    //right ir current reading
+int ls_curr;      //left sonar current reading
+int li_curr;      //left ir current reading
+int rs_curr;      //right sonar current reading
+int ri_curr;      //right ir current reading
 
 int ls_cerror;    //left sonar current error
 int li_cerror;    //left ir current error
@@ -178,12 +179,12 @@ int li_perror;    //left ir previous error
 int rs_perror;    //right sonar previous error
 int ri_perror;    //right ir previous error
 
-int ls_derror;  //left sonar delta error
-int li_derror;  //left ir delta error
-int rs_derror;  //right sonar delta error
-int ri_derror;  //right ir current error
-int left_derror;   //difference between left front and back sensor, this may be useful for adjusting the turn angle
-int right_derror;  //difference between right front and back sensor, this may be useful for adjusting the turn angle
+int ls_derror;    //left sonar delta error
+int li_derror;    //left ir delta error
+int rs_derror;    //right sonar delta error
+int ri_derror;    //right ir current error
+int left_derror;  //difference between left front and back sensor, this may be useful for adjusting the turn angle
+int right_derror; //difference between right front and back sensor, this may be useful for adjusting the turn angle
 
 int derror;       //difference between left and right error to center robot in the hallway
 
@@ -191,6 +192,9 @@ int rightState;   // detects if the right wall was ever found
 int leftState;    // dtects if the left wall was ever found
 
 int counter = 3;  // count how many times we try to find the wall. 3 means we are in random wander to start
+
+int topo_check = 1; // counts current state if topological tracking is active
+bool topo_done = FALSE; // tracks whether it's time to exit() topological navigation
 
 #define baud_rate 9600  //set serial communication baud rate
 
@@ -240,22 +244,58 @@ void setup()
  */
 void loop()
 {
-//  wallP();            //wall following proportional control
-  topo("SRLT");
+  topo("SLLRT");
 }
 
 /*
   Description: 
     Follows a set of instructions to follow paths. This means that it makes a specific
-    sequence of turns and terminates.
+    sequence of turns at intersections and terminates.
   
   Input: nothing
   
   Return: nothing
 */
-void topo(instr) {
-  instr1 = instr[1];
-  
+void topo(char *instr) {
+  char topo_current = instr[topo_check]; // tracks current instruction
+  if (bitRead(state, center) && topo_done == FALSE) { // initiates wall following
+    if (((ri_cerror == 0) && (li_cerror == 0)) || (derror == 0)) { // centered in the hallway
+      forward(half_rotation);          //drive robot forward
+    } else {
+      //try to average the error between the left and right to center the robot
+      if (derror > 0) {
+        spin(eighth_rotation, 1);        //spin right, the left error is larger
+        pivot(quarter_rotation, 0);       //pivot left to adjust forward
+      } else {
+        spin(eighth_rotation, 0);        //spin left the right error is larger
+        pivot(quarter_rotation, 1);       //pivot right to adjust forward
+      }
+    }
+  }
+  // turns around corners if instructions call for it
+  if(ri_curr > 12 || li_curr > 12) {
+    if(topo_current == 'R') {
+      spin(quarter_rotation,1);
+      forward(half_rotation);
+      spin(quarter_rotation,1);
+      forward(one_rotation);
+      forward(half_rotation);
+      topo_check++;
+      topo_current = instr[topo_check];
+    } else if(topo_current == 'L') {
+      spin(quarter_rotation+50,0);
+      forward(half_rotation);
+      spin(quarter_rotation+50,0);
+      forward(one_rotation);
+      forward(half_rotation);
+      topo_check++;
+      topo_current = instr[topo_check];
+    }
+    // terminates program at after doing all turns
+    if(topo_current == 'T') {
+      exit(0);
+    }  
+  }
 }
 
 /*
