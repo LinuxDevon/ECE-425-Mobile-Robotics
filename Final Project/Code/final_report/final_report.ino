@@ -58,6 +58,14 @@
 #include <NewPing.h> //include sonar library
 #include <TimerOne.h>//include timer interrupt library
 
+//sets up wireless transeiver
+#include <SPI.h> //include serial peripheral interface library
+#include <RF24.h> //include wireless transceiver library
+#include <nRF24L01.h> //include wireless transceiver library
+#define CE_PIN 7
+#define CSN_PIN 8
+RF24 radio(CE_PIN, CSN_PIN);
+
 //define stepper motor pin numbers
 #define stepperEnable 48  //stepper enable pin on stepStick
 #define rtStepPin     46  //right stepper motor step pin
@@ -280,7 +288,7 @@ void setup()
  */
 void loop()
 {
-  topo("SLLRT");
+  topo("SLLLLT");
 }
 
 /*
