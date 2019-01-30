@@ -200,6 +200,7 @@ bool topo_done = FALSE; // tracks whether it's time to exit() topological naviga
 
 // O Map defines
 #define OBSTACLE  99
+#define GOAL      50
 #define EMPTY     0
 
 // T Map defines
@@ -219,6 +220,7 @@ bool topo_done = FALSE; // tracks whether it's time to exit() topological naviga
 #define SWE   B1110
 #define NSWE  B1111
 
+// maps for the little robot
 volatile byte Tmap[4][4] = {{NW, NSWE, NSWE, NE},
                             {W, NS, NS, E},
                             {WE, NSWE, NSWE, WE},
@@ -232,6 +234,10 @@ volatile byte Omap[9][9] = {{0, 0, 0, 0, 0, 0, 0, 0, 0},
                              {0, 0, 0, 0, 0, 0, 0, 0, 0},
                              {0, 0, 0, 0, 0, 0, 0, 0, 0},
                              {0, 0, 0, 0, 0, 0, 0, 0, 0}};
+
+// Character array for giving an input to the top function when
+// we calculate the path
+char *directions;
 
 /*
  * Initialization code
@@ -270,7 +276,8 @@ void setup()
   pinMode(GREEN_LED, OUTPUT);
   pinMode(YELLOW_LED, OUTPUT);
 
-  CalcWavefront(0,0);
+  CalcWavefront(0,0,3,3);
+  
   // start in wander state
   bitSet(flag, wander);
 
@@ -281,7 +288,7 @@ void setup()
  */
 void loop()
 {
-  topo("SLLRT");
+  topo(directions);
 }
 
 /*
@@ -296,6 +303,7 @@ void loop()
 
 void topo(char *instr) {
   char topo_current = instr[topo_check]; // tracks current instruction
+  Serial.print(instr);
   if (bitRead(state, center) && topo_done == FALSE) { // initiates wall following
     if (((ri_cerror == 0) && (li_cerror == 0)) || (derror == 0)) { // centered in the hallway
       forward(half_rotation);          //drive robot forward
@@ -344,10 +352,17 @@ void topo(char *instr) {
   
   Return: nothing
 */
-void CalcWavefront(int row, int column) {
+void CalcWavefront(int StartRow, int StartCol, int GoalRow, int GoalCol) {
   int Trow,Tcol,Orow,Ocol;
+  int i, j, currentVal, smallestIndex;
+  int directionIndex = 1;
+  bool notDone = true;
+  bool found = false;
+  bool foundGoal = false;
+  byte options[4];
+  char directionsArray[50];
 
-    // Make the o map based on the t map
+    // Make the o map based on the t map to add 99's
   for(Trow = 0; Trow < 4; Trow++) {  // rows
     for(Tcol = 0; Tcol < 4; Tcol++) {  // columns
       Orow = (Trow * 2) + 1;
@@ -373,19 +388,158 @@ void CalcWavefront(int row, int column) {
         Omap[Orow+1][Ocol-1] = OBSTACLE;
         Omap[Orow-1][Ocol-1] = OBSTACLE;
       }
+      if((Tmap[Trow][Tcol] & B1111) == B1111) {  // ALL
+        Omap[Orow][Ocol] = OBSTACLE;
+      }
     }
   } 
-  printArray();
+
+  // make the goal in terms of 9x9 for omap
+  GoalRow = (GoalRow * 2) + 1;
+  GoalCol = (GoalCol * 2) + 1;
+  StartRow = (StartRow * 2) + 1;
+  StartCol = (StartCol * 2) + 1;
+
+  // set the inital goal spot and values around the goal to
+  // start the algorithm
+  Omap[GoalRow][GoalCol] = GOAL;
+  if(Omap[GoalRow+1][GoalCol] != OBSTACLE) {
+    Omap[GoalRow+1][GoalCol] = 1;
+  }
+  if(Omap[GoalRow-1][GoalCol] != OBSTACLE) {
+    Omap[GoalRow-1][GoalCol] = 1;
+  }
+  if(Omap[GoalRow][GoalCol+1] != OBSTACLE) {
+    Omap[GoalRow][GoalCol+1] = 1;
+  }
+  if(Omap[GoalRow][GoalCol-1] != OBSTACLE) {
+    Omap[GoalRow][GoalCol-1] = 1;
+  }
+  
+  Orow = 0;
+  Ocol = 0;
+
+  printArray(); // print the array to check initial omap values
+  
+  // Do the wave...
+  while(notDone) {
+    if(Omap[Orow][Ocol] != 0 && Omap[Orow][Ocol] != OBSTACLE) { // check if there is a number
+      currentVal = Omap[Orow][Ocol]+1;
+      if((Orow + 1) <= 9) {
+        if(Omap[Orow+1][Ocol] == 0 && Omap[Orow+1][Ocol] != GOAL) {  // above the box
+          Omap[Orow+1][Ocol] = currentVal;
+        }
+      }
+      if((Orow - 1) >= 0) {
+        if(Omap[Orow-1][Ocol] == 0 && Omap[Orow-1][Ocol] != GOAL) {  // below the box
+          Omap[Orow-1][Ocol] = currentVal;
+        }
+      }
+      if((Ocol + 1) <= 9) {
+        if(Omap[Orow][Ocol+1] == 0 && Omap[Orow][Ocol+1] != GOAL) {  // right to the box
+          Omap[Orow][Ocol+1] = currentVal;
+        }
+      }
+      if((Ocol - 1) >= 0) {
+        if(Omap[Orow][Ocol-1] == 0 && Omap[Orow][Ocol-1] != GOAL) {  // left to the box
+          Omap[Orow][Ocol-1] = currentVal;
+        }
+      }
+    }
+
+    if(Ocol == 8) {
+      Ocol = 0;
+      if (Orow == 8) {
+        Orow = 0;
+        // check if we have filled in every square
+        for(i = 0 ; i < 9; i ++){
+          for(j = 0; j < 9; j++) {
+            if(Omap[i][j] == 0 && i != GoalRow && j != GoalCol){  // still have more to fill out
+              found = true;
+            }
+          }
+        }
+        // if we found a box not filled clear the flag.
+        if(found == true) {
+          found = false;
+        } else {  // no more boxes to fill
+          notDone = false;
+        }
+      } else {
+        Orow += 1;
+      }
+    } else {
+      Ocol += 1;
+    }
+  }
+
+  Ocol = StartCol;
+  Orow = StartRow;
+
+  Omap[GoalRow][GoalCol] = EMPTY;
+
+  printArray(); // final Omap that has the values of the paths
+  
+  directionsArray[0] = "S";
+  // Ride the wave... (Path finding...)
+  while(!foundGoal) {
+    if(Omap[Orow][Ocol] == EMPTY) {
+      foundGoal = true;
+    }
+    options[0] = Omap[Orow+1][Ocol];
+    options[1] = Omap[Orow-1][Ocol];
+    options[2] = Omap[Orow][Ocol+1];
+    options[3] = Omap[Orow][Ocol-1];
+
+    smallestIndex = 0;
+    for(i = 0; i < 4; i++) {
+      if(options[i] <= options[smallestIndex]){
+        smallestIndex = i;
+      }
+    }
+    Serial.print(Orow);
+    Serial.print(Ocol);
+    Serial.print(", ");
+    Serial.println(smallestIndex);
+//    delay(1000);
+
+    switch(smallestIndex) {
+      case 0: // Forward
+//        directions[directionIndex] = "F"
+        Orow += 1;
+        break;
+      case 1: // Up
+//        directions[directionIndex] = "R"
+        Orow -= 1;
+        break;
+      case 2: //right
+        directionsArray[directionIndex] = "R";
+        directionIndex += 1;
+        Ocol += 1;
+        break;
+      case 3: //left
+        directionsArray[directionIndex] = "L";
+        directionIndex += 1;
+        Ocol -= 1;
+        break;
+       default:
+        break;
+    }
+  }
+  directionsArray[directionIndex] = "T";
+  directions = &directionsArray[0];
 }
 
 //Debugging
 void printArray() {
   int col, row;
+  Serial.println("=============================================");
   for(row = 0; row < 9; row++){
     Serial.print("[");
     for(col = 0; col < 9; col++) {
-      if(Omap[row][col] == 0) {
-        Serial.print("00");
+      if(Omap[row][col] < 10) {
+        Serial.print("0");
+        Serial.print(Omap[row][col]);
       } else {
         Serial.print(Omap[row][col]);
       }
@@ -393,6 +547,7 @@ void printArray() {
     }
     Serial.println("]");  
   }
+  Serial.println("=============================================");
 }
 /*
   Description: 
