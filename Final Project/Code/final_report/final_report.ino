@@ -338,12 +338,15 @@ void topo(char *instr) {
       topo_check++;
       topo_current = instr[topo_check];
     } else if(topo_current == 'F') {
-      forward(two_rotation);
+      forward(one_rotation);
+      forward(half_rotation);
       topo_check++;
       topo_current = instr[topo_check];
     }
     // terminates program at after doing all turns
     if(topo_current == 'T') {
+      forward(one_rotation);
+      forward(half_rotation);
       exit(0);
     }  
   }
@@ -491,6 +494,7 @@ void CalcWavefront(int StartRow, int StartCol, int GoalRow, int GoalCol) {
   while(!foundGoal) {
     if(Omap[Orow][Ocol] == EMPTY) {
       foundGoal = true;
+      break;
     }
     options[0] = Omap[Orow+1][Ocol];
     options[1] = Omap[Orow-1][Ocol];
@@ -503,7 +507,7 @@ void CalcWavefront(int StartRow, int StartCol, int GoalRow, int GoalCol) {
         smallestIndex = i;
       }
     }
-
+    
     Serial.print(Omap[Orow][Ocol]);
     Serial.print(", ");
     Serial.println(smallestIndex);
@@ -515,13 +519,20 @@ void CalcWavefront(int StartRow, int StartCol, int GoalRow, int GoalCol) {
           Serial.println("turning right");
           directions[directionIndex] = 'R';
           directionIndex++;
+        }else if (options[3] != 99 || options[2] != 99) {
+          directions[directionIndex] = 'F';
+          directionIndex++;
         }
         Orow += 1;
         break;
-      case 1: // Up
+      case 1: // down
 //        directions[directionIndex] = "R"
         if(previousStep == 3) { // just turned right
           directions[directionIndex] = 'L';
+          directionIndex++;
+        }
+        if (options[3] != 99 || options[2] != 99) {
+          directions[directionIndex] = 'F';
           directionIndex++;
         }
         Orow -= 1;
@@ -534,6 +545,10 @@ void CalcWavefront(int StartRow, int StartCol, int GoalRow, int GoalCol) {
             directions[directionIndex] = 'R';
           }
           directionIndex += 1;
+        }
+        if (options[0] != 99) {
+          directions[directionIndex] = 'F';
+          directionIndex++;
         }
         Ocol += 1;
         break;
