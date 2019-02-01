@@ -1,3 +1,5 @@
+#include <PS2X_lib.h>
+
 /*RobotReceiver.ino
   Authors: Carlotta Berry, Ricky Rung
   modified: 11/23/16
@@ -121,6 +123,10 @@ void loop() {
     } else if(data[0] == 6) {
       Serial.println("right");
       spin(RIGHT);
+    } else {
+      radio.openWritingPipe(pipe);//open up writing pipe
+      data = "not valid";
+      radio.write(data, sizeof(data));
     }
   }
 }
