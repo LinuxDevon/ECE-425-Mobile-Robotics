@@ -337,6 +337,10 @@ void topo(char *instr) {
       forward(half_rotation);
       topo_check++;
       topo_current = instr[topo_check];
+    } else if(topo_current == 'F') {
+      forward(two_rotation);
+      topo_check++;
+      topo_current = instr[topo_check];
     }
     // terminates program at after doing all turns
     if(topo_current == 'T') {
