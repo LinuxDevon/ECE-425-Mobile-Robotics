@@ -2,29 +2,7 @@
   Author: Devon Adair and Hunter LaMantia
   Date: 1/16/19
 
-  This lab was trying to follow walls using bang-bang control and a p/pd control.
-  bang-bang was a more swingy follow method that was rough. The P control is a 
-  proportianal controller and takes error into account to proportionally adjust based
-  how far away from the wall the robot is. The P controller was smooth enough where we
-  didn't need to have the Derivative portion.
-  
-  We modified wallBang() to support the following of wall roughly. The movement wasn't smooth and was
-  jerky.
-  We modified updateIR() to convert the raw values to inches to make it easier to tune thresholds.
 
-  We didn't use sonar due to it not working last lab.
-
-  wallP() was the function that we created for our proportional control. It is based on
-  wallBang() but the distances it adjusts are proportional to the error or distance from the wall.
-  There is a gain value that we tuned to smooth out the movement. It also handles corners, hallways
-  and obstacles. When it looses a wall it tries three times then goes to random wander if it looses it.
-
-  We modified runToStop() to disable the timer and enable when done. We found that it wasn't returing 
-  correctly and didn't finish the movements we gave it correctly. This fixed the issues and allowed us
-  to handle corners correctly.
-
-  The last function we add was randomWander which we copied from last lab. It just picks random
-  directions to go and executes.
 
   All other functions were given and unmodifed.
 
@@ -228,10 +206,15 @@ int topo_check = 1; // counts current state if topological tracking is active
 #define NSWE  B1111
 
 // maps for the little robot
-volatile byte Tmap[4][4] = {{NW, NSWE, NSWE, NE},
-                            {W, NS, NS, E},
-                            {WE, NSWE, NSWE, WE},
-                            {SWE, SNW, NS, SE}};;
+volatile byte Tmap[4][4] = {{NW, SNW, N, NSWE},
+                            {W, NS, S, NE},
+                            {WE, SNW, NS, E},
+                            {SWE, SNW, NS, SE}};
+//volatile byte Tmap[4][4] = {{NW, NSWE, NSWE, NE},
+//                            {W, NS, NS, E},
+//                            {WE, NSWE, NSWE, WE},
+//                            {SWE, SNW, NS, SE}};
+
 volatile byte Omap[9][9] = {{0, 0, 0, 0, 0, 0, 0, 0, 0},
                              {0, 0, 0, 0, 0, 0, 0, 0, 0},
                              {0, 0, 0, 0, 0, 0, 0, 0, 0},
@@ -244,8 +227,13 @@ volatile byte Omap[9][9] = {{0, 0, 0, 0, 0, 0, 0, 0, 0},
 
 // Character array for giving an input to the top function when
 // we calculate the path
-char *directions;
+char directions[10];
 
+#define NORTH 0
+#define SOUTH 1
+#define WEST  2
+#define EAST  3
+int startingDirection = SOUTH;
 /*
  * Initialization code
  */
@@ -283,7 +271,7 @@ void setup()
   pinMode(GREEN_LED, OUTPUT);
   pinMode(YELLOW_LED, OUTPUT);
 
-  CalcWavefront(0,0,3,3);
+  CalcWavefront(0,0,3,1);
   
   // start in wander state
   bitSet(flag, wander);
@@ -295,8 +283,8 @@ void setup()
  */
 void loop()
 {
-//  topo(directions);
-  topo("SLLLLT");
+  topo(directions);
+//  topo("SLLLLT");
 }
 
 /*
@@ -311,6 +299,12 @@ void loop()
 
 void topo(char *instr) {
   char topo_current = instr[topo_check]; // tracks current instruction
+//  Serial.print(instr[0]);
+//  Serial.print(instr[1]);
+//  Serial.print(instr[2]);
+//  Serial.print(instr[3]);
+//  Serial.println(instr[4]):
+
   if (bitRead(state, center)) { // initiates wall following
     if (((ri_cerror == 0) && (li_cerror == 0)) || (derror == 0)) { // centered in the hallway
       forward(half_rotation);          //drive robot forward
@@ -328,9 +322,9 @@ void topo(char *instr) {
   // turns around corners if instructions call for it
   if(ri_curr > 12 || li_curr > 12) {
     if(topo_current == 'R') {
-      spin(quarter_rotation,1);
+      spin(quarter_rotation+50,1);
       forward(half_rotation);
-      spin(quarter_rotation,1);
+      spin(quarter_rotation+15,1);
       forward(one_rotation);
       forward(half_rotation);
       topo_check++;
@@ -366,8 +360,8 @@ void CalcWavefront(int StartRow, int StartCol, int GoalRow, int GoalCol) {
   bool notDone = true;
   bool found = false;
   bool foundGoal = false;
+  int previousStep;
   byte options[4];
-  char directionsArray[50];
 
     // Make the o map based on the t map to add 99's
   for(Trow = 0; Trow < 4; Trow++) {  // rows
@@ -487,7 +481,8 @@ void CalcWavefront(int StartRow, int StartCol, int GoalRow, int GoalCol) {
 
   printArray(); // final Omap that has the values of the paths
   
-  directionsArray[0] = "S";
+  directions[0] = 'S';
+  previousStep = 0;
   // Ride the wave... (Path finding...)
   while(!foundGoal) {
     if(Omap[Orow][Ocol] == EMPTY) {
@@ -504,37 +499,67 @@ void CalcWavefront(int StartRow, int StartCol, int GoalRow, int GoalCol) {
         smallestIndex = i;
       }
     }
-    Serial.print(Orow);
-    Serial.print(Ocol);
+
+    Serial.print(Omap[Orow][Ocol]);
     Serial.print(", ");
     Serial.println(smallestIndex);
-//    delay(1000);
 
     switch(smallestIndex) {
       case 0: // Forward
 //        directions[directionIndex] = "F"
+        if(previousStep == 2) { // just turned right
+          Serial.println("turning right");
+          directions[directionIndex] = 'R';
+          directionIndex++;
+        }
         Orow += 1;
         break;
       case 1: // Up
 //        directions[directionIndex] = "R"
+        if(previousStep == 3) { // just turned right
+          directions[directionIndex] = 'L';
+          directionIndex++;
+        }
         Orow -= 1;
         break;
       case 2: //right
-        directionsArray[directionIndex] = "R";
-        directionIndex += 1;
+        if(previousStep != smallestIndex) {
+          if(startingDirection == SOUTH) {
+            directions[directionIndex] = 'L';
+          } else {
+            directions[directionIndex] = 'R';
+          }
+          directionIndex += 1;
+        }
         Ocol += 1;
         break;
       case 3: //left
-        directionsArray[directionIndex] = "L";
-        directionIndex += 1;
+        if(previousStep != smallestIndex) {
+          if(startingDirection == SOUTH) {
+            directions[directionIndex] = 'R';
+          } else {
+            directions[directionIndex] = 'L';
+          }
+          directionIndex += 1;
+        }
         Ocol -= 1;
         break;
        default:
         break;
     }
+    previousStep = smallestIndex;
   }
-  directionsArray[directionIndex] = "T";
-  directions = &directionsArray[0];
+  
+  directions[directionIndex] = 'T';
+
+  Serial.print("Total Steps: ");
+  Serial.println(directionIndex);
+  Serial.print(directions[0]);
+  Serial.print(directions[1]);
+  Serial.print(directions[2]);
+  Serial.print(directions[3]);
+  Serial.print(directions[4]);
+  Serial.print(directions[5]);
 }
 
 //Debugging
