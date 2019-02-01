@@ -50,6 +50,8 @@ void setup() {
   radio.begin();//start radio
   radio.setChannel(team_channel);//set the transmit and receive channels to avoid interference
   radio.openWritingPipe(pipe);//open up writing pipe
+  radio.openReadingPipe(1, pipe);//open up reading pipe
+  radio.startListening();;//start listening for data;
 }
 
 void loop() {

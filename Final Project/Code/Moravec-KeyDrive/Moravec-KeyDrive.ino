@@ -105,6 +105,7 @@ void setup() {
   radio.setChannel(team_channel);//set the transmit and receive channels to avoid interference
   radio.openReadingPipe(1, pipe);//open up reading pipe
   radio.startListening();;//start listening for data;
+  radio.openWritingPipe(pipe);//open up writing pipe
   pinMode(test_LED, OUTPUT);//set LED pin as an output
 }
 
@@ -124,7 +125,6 @@ void loop() {
       Serial.println("right");
       spin(RIGHT);
     } else {
-      radio.openWritingPipe(pipe);//open up writing pipe
       data = "not valid";
       radio.write(data, sizeof(data));
     }
