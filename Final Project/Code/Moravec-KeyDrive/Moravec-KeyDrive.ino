@@ -104,14 +104,15 @@ void setup() {
   radio.begin();//start radio
   radio.setChannel(team_channel);//set the transmit and receive channels to avoid interference
   radio.openReadingPipe(1, pipe);//open up reading pipe
-  radio.startListening();;//start listening for data;
-  radio.openWritingPipe(pipe);//open up writing pipe
+  radio.startListening();//start listening for data;
+//  radio.openWritingPipe(pipe);//open up writing pipe
   pinMode(test_LED, OUTPUT);//set LED pin as an output
 }
 
 void loop() {
   while (radio.available()) {
     radio.read(&data, sizeof(data));
+//    Serial.println(data[0]);
     if(data[0] == 8) {
       Serial.println("forward");
       forward(FORWARD);
@@ -124,9 +125,9 @@ void loop() {
     } else if(data[0] == 6) {
       Serial.println("right");
       spin(RIGHT);
-    } else {
-      data = "not valid";
-      radio.write(data, sizeof(data));
+//    } else {
+//      int num = 1;
+//      radio.write(num, 1);
     }
   }
 }
