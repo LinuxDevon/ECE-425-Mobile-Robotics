@@ -41,7 +41,7 @@
 #define test_LED 13
 #define team_channel 69   //transmitter and receiver on same channel between 1 & 125
 
-const uint64_t pipe = 0xE8E8F0F0E1LL; //define the radio transmit pipe (5 Byte configurable)
+const uint64_t pipes[2] = {0xE8E8F0F0E1LL, 0xE8E8F0F0A1LL}; //define the radio transmit pipe (5 Byte configurable)
 RF24 radio(CE_PIN, CSN_PIN);          //create radio object
 uint8_t data[1];                      //variable to hold transmit data
 
@@ -49,16 +49,28 @@ void setup() {
   Serial.begin(9600);//start serial communication
   radio.begin();//start radio
   radio.setChannel(team_channel);//set the transmit and receive channels to avoid interference
-  radio.openWritingPipe(pipe);//open up writing pipe
-//  radio.openReadingPipe(1, pipe);//open up reading pipe
-//  radio.startListening();;//start listening for data;
+  radio.openWritingPipe(pipes[0]);//open up writing pipe
+  radio.openReadingPipe(1, pipes[1]);//open up reading pipe
+//  radio.startListening();//start listening for data;
 }
 
+uint8_t recieveInfo[1];
+
+// code was referenced from here: https://howtomechatronics.com/tutorials/arduino/arduino-wireless-communication-nrf24l01-tutorial/
 void loop() {
   //use serial monitor to send 0 and 1 to blink LED on digital pin 13 on robot microcontroller
+  delay(5);
+  radio.stopListening();
   if (Serial.available() > 0) {
     data[0] = Serial.parseInt();
     Serial.println(data[0]);
     radio.write(data, sizeof(data));
   }
+
+  delay(5);
+  radio.startListening();
+  while (!radio.available());
+  radio.read(&recieveInfo, sizeof(recieveInfo));
+  Serial.print("Value from the stupid bot... : ");
+  Serial.println(recieveInfo[0]);
 }
