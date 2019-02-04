@@ -77,9 +77,10 @@ volatile byte state = 0;
 #define movingL   6   //robot left wheel moving
 #define movingR   7   //robot right wheel moving
 
-const uint64_t pipe = 0xE8E8F0F0E1LL; //define the radio transmit pipe (5 Byte configurable)
+const uint64_t pipes[2] = {0xE8E8F0F0E1LL, 0xE8E8F0F0A1LL}; //define the radio transmit pipe (5 Byte configurable)
 RF24 radio(CE_PIN, CSN_PIN);          //create radio object
 uint8_t data[1];                      //variable to hold transmit data
+uint8_t sendData[1];
 
 void setup() {
   //stepper Motor set up
@@ -103,14 +104,18 @@ void setup() {
   Serial.begin(9600);//start serial communication
   radio.begin();//start radio
   radio.setChannel(team_channel);//set the transmit and receive channels to avoid interference
-  radio.openReadingPipe(1, pipe);//open up reading pipe
+  radio.openWritingPipe(pipes[1]);
+  radio.openReadingPipe(1, pipes[0]);//open up reading pipe
   radio.startListening();//start listening for data;
 //  radio.openWritingPipe(pipe);//open up writing pipe
   pinMode(test_LED, OUTPUT);//set LED pin as an output
 }
 
 void loop() {
+  delay(5);
+  radio.startListening();
   while (radio.available()) {
+//    Serial.println("test");
     radio.read(&data, sizeof(data));
 //    Serial.println(data[0]);
     if(data[0] == 8) {
@@ -130,6 +135,10 @@ void loop() {
 //      radio.write(num, 1);
     }
   }
+  delay(5);
+  radio.stopListening();
+  sendData[0] = 15;
+  radio.write(sendData, sizeof(sendData));
 }
 
 /*
