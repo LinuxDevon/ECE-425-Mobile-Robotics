@@ -233,7 +233,7 @@ char directions[10];
 #define SOUTH 1
 #define WEST  2
 #define EAST  3
-int startingDirection = SOUTH;
+int startingDirection = NORTH;
 /*
  * Initialization code
  */
@@ -271,7 +271,10 @@ void setup()
   pinMode(GREEN_LED, OUTPUT);
   pinMode(YELLOW_LED, OUTPUT);
 
-  CalcWavefront(0,0,3,1);
+  CalcWavefront(3,0,2,1);
+//  CalcWavefront(0,0,3,1);
+//   CalcWavefront(0,1,2,1);
+//  CalcWavefront(1,3,0,1);
   
   // start in wander state
   bitSet(flag, wander);
@@ -348,9 +351,9 @@ void topo(char *instr) {
       topo_current = instr[topo_check];
     }
     // terminates program at after doing all turns
-    if(topo_current == 'T') {
-      forward(one_rotation);
-      forward(half_rotation);
+    if(topo_current == 'T' && bitRead(flag,obFront)) {
+//      forward(one_rotation);
+//      forward(half_rotation);
       exit(0);
     }  
   }
@@ -555,6 +558,7 @@ void CalcWavefront(int StartRow, int StartCol, int GoalRow, int GoalCol) {
           directions[directionIndex] = 'F';
           directionIndex++;
         }
+        startingDirection = SOUTH;
         Orow += 1;
         break;
       case 1: // North
@@ -568,36 +572,37 @@ void CalcWavefront(int StartRow, int StartCol, int GoalRow, int GoalCol) {
           directions[directionIndex] = 'F';
           directionIndex++;
         }
+        startingDirection = NORTH;
         Orow -= 1;
         break;
       case 2: // EAST
-        if(previousStep != smallestIndex) {
+        if(previousStep != smallestIndex && startingDirection != EAST) {
           if(startingDirection == SOUTH) {
             directions[directionIndex] = 'L';
           } else {
             directions[directionIndex] = 'R';
           }
           directionIndex += 1;
-        }
-        if (options[0] != 99 || options[1] != 99) { // check T junctions
+        }else if (options[0] != 99 || options[1] != 99 ) { // check T junctions
           directions[directionIndex] = 'F';
           directionIndex++;
         }
+        startingDirection = EAST;
         Ocol += 1;
         break;
       case 3: // WEST
-        if(previousStep != smallestIndex) {
+        if(previousStep != smallestIndex && startingDirection != WEST) {
           if(startingDirection == SOUTH) {
             directions[directionIndex] = 'R';
           } else {
             directions[directionIndex] = 'L';
           }
           directionIndex += 1;
-        }
-        if (options[0] != 99 || options[1] != 99) { // check T junctions
+        }else if (options[0] != 99 || options[1] != 99) { // check T junctions
           directions[directionIndex] = 'F';
           directionIndex++;
         }
+        startingDirection = WEST;
         Ocol -= 1;
         break;
        default:
