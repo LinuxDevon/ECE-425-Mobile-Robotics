@@ -287,6 +287,10 @@ void loop()
 //  topo("SLLLLT");
 }
 
+
+///////////////////////////////////////////////////////////
+// TOPOLOGICAL
+///////////////////////////////////////////////////////////
 /*
   Description: 
     Follows a set of instructions to follow paths. This means that it makes a specific
@@ -352,23 +356,46 @@ void topo(char *instr) {
   }
 }
 
+
+///////////////////////////////////////////////////////////
+// PATH PLANNING
+///////////////////////////////////////////////////////////
 /*
   Description: 
-    
+    This takes the Tmap that is already populated and expands the omap to 9x9.
+    When the omap is populated and does wavefront propogation on it. This 
+    creates a path to the goal from any square on the map. Once that is calculated
+    it plans the path and sets the directions[] to E, W, N, S directions.
+
+    The directions[] is filled with:
+    S - for start
+    T - for Terminate
+    F - for Forward for the T junctions
+    L - for Left
+    R - for Right
+
+    All the directions are relative to the robot and not the grid. This is why 
+    StartingDirection variable is important to know.
   
-  Input: nothing
+  Input:
+    StartRow - starting row for the robot
+    StartCol - starting column for the robot
+    GoalRow - the row that the goal is in
+    GoalCol - the column that the goal is in
+
+    The coordinates should be given in terms of a 4x4 0 indexed.
   
   Return: nothing
 */
 void CalcWavefront(int StartRow, int StartCol, int GoalRow, int GoalCol) {
-  int Trow,Tcol,Orow,Ocol;
-  int i, j, currentVal, smallestIndex;
-  int directionIndex = 1;
-  bool notDone = true;
-  bool found = false;
-  bool foundGoal = false;
-  int previousStep;
-  byte options[4];
+  int Trow,Tcol,Orow,Ocol;          // rows and columns of the maps
+  int i, j, currentVal, smallestIndex;  // indexing
+  int directionIndex = 1;           // mark where we are in the direction array skipping the S
+  bool notDone = true;              // check for doing the wavefront prop
+  bool found = false;               // used to find check if we found empty boxes to fill in the wavefront algorithm
+  bool foundGoal = false;           // check for finding the goal in the path finding
+  int previousStep;                 // what was the last move in the path finding
+  byte options[4];                  // store the direction values of left,right,up,down for path finding.
 
     // Make the o map based on the t map to add 99's
   for(Trow = 0; Trow < 4; Trow++) {  // rows
@@ -376,7 +403,7 @@ void CalcWavefront(int StartRow, int StartCol, int GoalRow, int GoalCol) {
       Orow = (Trow * 2) + 1;
       Ocol = (Tcol * 2) + 1;
       // NORTH
-      if((Tmap[Trow][Tcol] & B0001) == B0001) {
+      if((Tmap[Trow][Tcol] & B0001) == B0001) { // NORTH
         Omap[Orow-1][Ocol] = OBSTACLE;
         Omap[Orow-1][Ocol+1] = OBSTACLE;
         Omap[Orow-1][Ocol-1] = OBSTACLE;
@@ -455,6 +482,7 @@ void CalcWavefront(int StartRow, int StartCol, int GoalRow, int GoalCol) {
       }
     }
 
+    // handle row and column incrementations
     if(Ocol == 8) {
       Ocol = 0;
       if (Orow == 8) {
@@ -484,7 +512,7 @@ void CalcWavefront(int StartRow, int StartCol, int GoalRow, int GoalCol) {
   Ocol = StartCol;
   Orow = StartRow;
 
-  Omap[GoalRow][GoalCol] = EMPTY;
+  Omap[GoalRow][GoalCol] = EMPTY; // clear the goal that was set to 50 for the algorithm
 
   printArray(); // final Omap that has the values of the paths
   
@@ -496,11 +524,13 @@ void CalcWavefront(int StartRow, int StartCol, int GoalRow, int GoalCol) {
       foundGoal = true;
       break;
     }
+    // check the boxes to the left, right, top, and bottom
     options[0] = Omap[Orow+1][Ocol];
     options[1] = Omap[Orow-1][Ocol];
     options[2] = Omap[Orow][Ocol+1];
     options[3] = Omap[Orow][Ocol-1];
 
+    // find the smallest path
     smallestIndex = 0;
     for(i = 0; i < 4; i++) {
       if(options[i] <= options[smallestIndex]){
@@ -508,36 +538,39 @@ void CalcWavefront(int StartRow, int StartCol, int GoalRow, int GoalCol) {
       }
     }
     
-    Serial.print(Omap[Orow][Ocol]);
-    Serial.print(", ");
-    Serial.println(smallestIndex);
+//    Serial.print(Omap[Orow][Ocol]);
+//    Serial.print(", ");
+//    Serial.println(smallestIndex);
 
+    // pick the direction that is the smallest
     switch(smallestIndex) {
-      case 0: // Forward
-//        directions[directionIndex] = "F"
+      case 0: // South
         if(previousStep == 2) { // just turned right
-          Serial.println("turning right");
           directions[directionIndex] = 'R';
           directionIndex++;
-        }else if (options[3] != 99 || options[2] != 99) {
+        }else if(previousStep == 3) {   // just turned left
+          directions[directionIndex] = 'L';
+          directionIndex++;
+        }else if (options[3] != 99 || options[2] != 99) {   // check T junctions
           directions[directionIndex] = 'F';
           directionIndex++;
         }
         Orow += 1;
         break;
-      case 1: // down
-//        directions[directionIndex] = "R"
-        if(previousStep == 3) { // just turned right
-          directions[directionIndex] = 'L';
+      case 1: // North
+        if(previousStep == 2) {
+          directions[directionIndex] = 'L'; 
           directionIndex++;
-        }
-        if (options[3] != 99 || options[2] != 99) {
+        }else if(previousStep == 3) { // just turned right
+          directions[directionIndex] = 'R';
+          directionIndex++;
+        }else if (options[3] != 99 || options[2] != 99) { // check T junctions
           directions[directionIndex] = 'F';
           directionIndex++;
         }
         Orow -= 1;
         break;
-      case 2: //right
+      case 2: // EAST
         if(previousStep != smallestIndex) {
           if(startingDirection == SOUTH) {
             directions[directionIndex] = 'L';
@@ -546,13 +579,13 @@ void CalcWavefront(int StartRow, int StartCol, int GoalRow, int GoalCol) {
           }
           directionIndex += 1;
         }
-        if (options[0] != 99) {
+        if (options[0] != 99 || options[1] != 99) { // check T junctions
           directions[directionIndex] = 'F';
           directionIndex++;
         }
         Ocol += 1;
         break;
-      case 3: //left
+      case 3: // WEST
         if(previousStep != smallestIndex) {
           if(startingDirection == SOUTH) {
             directions[directionIndex] = 'R';
@@ -560,6 +593,10 @@ void CalcWavefront(int StartRow, int StartCol, int GoalRow, int GoalCol) {
             directions[directionIndex] = 'L';
           }
           directionIndex += 1;
+        }
+        if (options[0] != 99 || options[1] != 99) { // check T junctions
+          directions[directionIndex] = 'F';
+          directionIndex++;
         }
         Ocol -= 1;
         break;
@@ -579,6 +616,10 @@ void CalcWavefront(int StartRow, int StartCol, int GoalRow, int GoalCol) {
   Serial.print(directions[3]);
   Serial.print(directions[4]);
   Serial.print(directions[5]);
+  Serial.print(directions[6]);
+  Serial.print(directions[7]);
+  Serial.print(directions[8]);
+  Serial.print(directions[9]);
 }
 
 //Debugging
