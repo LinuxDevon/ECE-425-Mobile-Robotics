@@ -31,8 +31,6 @@
 */
 
 // -- INCLUDES --//
-#include <printf.h>
-#include <RF24_config.h>
 #include <AccelStepper.h>//include the stepper motor library
 #include <MultiStepper.h>//include multiple stepper motor library
 #include <NewPing.h> //include sonar library
@@ -45,8 +43,6 @@
 #define CE_PIN 7
 #define CSN_PIN 8
 RF24 radio(CE_PIN, CSN_PIN);
-#define test_LED 16
-#define team_channel 69   //transmitter and receiver on same channel between 1 & 125
 
 //define stepper motor pin numbers
 #define stepperEnable 48  //stepper enable pin on stepStick
@@ -228,6 +224,11 @@ volatile byte Tmap[4][4] = {{NWE, NWE, NWE, NWE},       // topological grid
                             {WE, W, E, WE},
                             {W, E, W, E},
                             {SWE, NSWE, NSWE, SWE}};
+volatile byte LocalMap[4][4] = {{0, 0, 0, 0},
+                                {0, 0, 0, 0},
+                                {0, 0, 0, 0},
+                                {0, 0, 0, 0}};
+int localStep = 0;
                                                         
 volatile byte Omap[9][9] = {{0, 0, 0, 0, 0, 0, 0, 0, 0},
                              {0, 0, 0, 0, 0, 0, 0, 0, 0},
@@ -248,18 +249,6 @@ char directions[10];
 #define WEST  2
 #define EAST  3
 int startingDirection = NORTH;
-
-// Set up constants for movement
-#define FORWARD 1
-#define BACKWARD -1
-#define LEFT 0
-#define RIGHT 1
-
-const uint64_t pipes[2] = {0xE8E8F0F0E1LL, 0xE8E8F0F0A1LL}; //define the radio transmit pipe (5 Byte configurable)
-//RF24 radio(CE_PIN, CSN_PIN);          //create radio object
-uint8_t data[1];                      //variable to hold transmit data
-uint8_t sendData[1];
-
 /*
  * Initialization code
  */
@@ -283,13 +272,6 @@ void setup()
   digitalWrite(stepperEnable, stepperEnTrue); //turns on the stepper motor driver
   digitalWrite(enableLED, HIGH);              //turn on enable LED
 
-  Serial.begin(9600);//start serial communication
-  radio.begin();//start radio
-  radio.setChannel(team_channel);//set the transmit and receive channels to avoid interference
-  radio.openWritingPipe(pipes[1]);
-  radio.openReadingPipe(1, pipes[0]);//open up reading pipe
-  radio.startListening();//start listening for data;
-
   // timer 1 setup
   Timer1.initialize(timer_int);               //initialize timer1, and set a period in microseconds
   Timer1.attachInterrupt(updateSensors);      //attaches updateSensors() as a timer overflow interrupt
@@ -304,11 +286,13 @@ void setup()
   pinMode(GREEN_LED, OUTPUT);
   pinMode(YELLOW_LED, OUTPUT);
 
+  makeOmapFromTmap();
+  printArray();       // show the inital array
 //  CalcWavefront(3,0,2,1);
 //  CalcWavefront(0,0,3,1);
 //  CalcWavefront(0,1,2,1);
 //  CalcWavefront(1,3,0,1);
-  CalcWavefront(0,0,0,0);
+//  CalcWavefront(0,0,0,0);
   
   // start in wander state
   bitSet(flag, wander);
@@ -459,8 +443,6 @@ void CalcWavefront(int StartRow, int StartCol, int GoalRow, int GoalCol) {
   bool foundGoal = false;           // check for finding the goal in the path finding
   int previousStep;                 // what was the last move in the path finding
   byte options[4];                  // store the direction values of left,right,up,down for path finding.
-
-  makeOmapFromTmap();
 
   // make the goal in terms of 9x9 for omap
   GoalRow = (GoalRow * 2) + 1;
@@ -691,6 +673,67 @@ void makeOmapFromTmap() {
       }
     }
   } 
+}
+
+///////////////////////////////////////////////////////////
+// LOCALIZATION SECTION
+///////////////////////////////////////////////////////////
+void localize(byte tile){
+  int row, col, numOfCorrectTiles;
+  int correctRow, correctCol;
+
+  // print the tile that is uses for the one the robot is in
+  
+  // assume we are looking for next step
+  localStep += 1;
+  for(row = 0; row < 4; row++) {
+    for(col = 0; col < 4; col++) {
+      if(Tmap[row][col] == tile) {   // compare if the tile is the same
+         if(row-1 >= 0){
+          if(LocalMap[row-1][col] == localStep-1){
+            LocalMap[row][col] = localStep;
+          }
+         }
+         if(row+1 <= 3){
+          if(LocalMap[row+1][col] == localStep-1) {
+            LocalMap[row][col] = localStep;
+          }
+         }
+         if(col-1 >= 0) {
+          if(LocalMap[row][col-1] == localStep-1){
+            LocalMap[row][col] = localStep;
+          }
+         }
+         if(col+1 <= 3) {
+          if(LocalMap[row][col+1] == localStep-1) {
+            LocalMap[row][col] = localStep;
+          }
+         }
+      }
+    }
+  }
+
+  numOfCorrectTiles = 0;
+  
+  // check if there is only one tile with the correct step
+  // this means we know where we are
+  for(row = 0; row < 4; row++) {
+    for(col = 0; col < 4; col++) {
+      if(LocalMap[row][col] == localStep) {
+        correctRow = row;
+        correctCol = col; // save where it is at
+        numOfCorrectTiles++;
+      }
+    }
+  }
+
+  if(numOfCorrectTiles == 1) {
+    // found the location!
+    // print the array
+    Omap[correctRow][correctCol] = 25;
+    printArray();
+  }
+
 }
 
 //Debugging
