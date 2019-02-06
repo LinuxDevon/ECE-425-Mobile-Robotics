@@ -41,9 +41,11 @@
 #define test_LED 13
 #define team_channel 69   //transmitter and receiver on same channel between 1 & 125
 
-const uint64_t pipes[2] = {0xE8E8F0F0E1LL, 0xE8E8F0F0A1LL}; //define the radio transmit pipe (5 Byte configurable)
+const uint64_t pipes[2] = {0xE8E8F0F0E1LL, 0xE8E8F0E07DLL}; //define the radio transmit pipe (5 Byte configurable)
 RF24 radio(CE_PIN, CSN_PIN);          //create radio object
 uint8_t data[1];                      //variable to hold transmit data
+
+int i;
 
 void setup() {
   Serial.begin(9600);//start serial communication
@@ -54,7 +56,7 @@ void setup() {
 //  radio.startListening();//start listening for data;
 }
 
-uint8_t recieveInfo[1];
+uint8_t recieveInfo[9];
 
 // code was referenced from here: https://howtomechatronics.com/tutorials/arduino/arduino-wireless-communication-nrf24l01-tutorial/
 void loop() {
@@ -69,8 +71,15 @@ void loop() {
 
   delay(5);
   radio.startListening();
-  while (!radio.available());
-  radio.read(&recieveInfo, sizeof(recieveInfo));
-  Serial.print("Value from the bot... : ");
-  Serial.println(recieveInfo[0]);
+  if (radio.available()) {
+    radio.read(&recieveInfo, sizeof(recieveInfo));
+    for(i = 0; i < 9; i++) {
+      if(recieveInfo[i] < 10) {
+        Serial.print(0);
+      }
+      Serial.print(recieveInfo[i]);
+      Serial.print(", ");
+    }
+    Serial.println();
+  }
 }
