@@ -71,6 +71,6 @@ void loop() {
   radio.startListening();
   while (!radio.available());
   radio.read(&recieveInfo, sizeof(recieveInfo));
-  Serial.print("Value from the stupid bot... : ");
+  Serial.print("Value from the bot... : ");
   Serial.println(recieveInfo[0]);
 }

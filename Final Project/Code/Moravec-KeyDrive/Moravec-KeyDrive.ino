@@ -120,19 +120,16 @@ void loop() {
 //    Serial.println(data[0]);
     if(data[0] == 8) {
       Serial.println("forward");
-      forward(FORWARD);
+      forward2(FORWARD);
     } else if(data[0] == 2) {
       Serial.println("backward");
-      forward(BACKWARD);
+      forward2(BACKWARD);
     } else if(data[0] == 4) {
       Serial.println("left");
-      spin(LEFT);
+      spin2(LEFT);
     } else if(data[0] == 6) {
       Serial.println("right");
-      spin(RIGHT);
-//    } else {
-//      int num = 1;
-//      radio.write(num, 1);
+      spin2(RIGHT);
     }
   }
   delay(5);
@@ -150,7 +147,7 @@ void loop() {
   
   Return: nothing
 */
-void forward(int dir) {
+void forward2(int dir) {
   long positions[2];                                    // Array of desired stepper positions
   stepperRight.setCurrentPosition(0);                   //reset right motor to position 0
   stepperLeft.setCurrentPosition(0);                    //reset left motor to position 0
@@ -173,7 +170,7 @@ void forward(int dir) {
   
   Return: nothing
 */
-void spin(int dir) {
+void spin2(int dir) {
   long positions[2];                                    // Array of desired stepper positions
   stepperRight.setCurrentPosition(0);                   //reset right motor to position 0
   stepperLeft.setCurrentPosition(0);                    //reset left motor to position 0
