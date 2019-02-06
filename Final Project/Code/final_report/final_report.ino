@@ -206,15 +206,24 @@ int topo_check = 1; // counts current state if topological tracking is active
 #define NSWE  B1111
 
 // maps for the little robot
-volatile byte Tmap[4][4] = {{NW, SNW, N, NSWE},
-                            {W, NS, S, NE},
-                            {WE, SNW, NS, E},
-                            {SWE, SNW, NS, SE}};
+//volatile byte Tmap[4][4] = {{NW, SNW, N, NSWE},
+//                            {W, NS, S, NE},
+//                            {WE, SNW, NS, E},
+//                            {SWE, SNW, NS, SE}};
 //volatile byte Tmap[4][4] = {{NW, NSWE, NSWE, NE},
 //                            {W, NS, NS, E},
 //                            {WE, NSWE, NSWE, WE},
 //                            {SWE, SNW, NS, SE}};
 
+//volatile byte Tmap[4][4] = {{NWE, NSWE, NSWE, NWE},   // occupancy grid
+//                            {W, NS, NS, E},
+//                            {WE, NSWE, NSWE, WE},
+//                            {SWE, NSWE, NSWE, SWE}};
+volatile byte Tmap[4][4] = {{NWE, NWE, NWE, NWE},       // topological grid
+                            {WE, W, E, WE},
+                            {W, E, W, E},
+                            {SWE, NSWE, NSWE, SWE}};
+                                                        
 volatile byte Omap[9][9] = {{0, 0, 0, 0, 0, 0, 0, 0, 0},
                              {0, 0, 0, 0, 0, 0, 0, 0, 0},
                              {0, 0, 0, 0, 0, 0, 0, 0, 0},
@@ -271,10 +280,11 @@ void setup()
   pinMode(GREEN_LED, OUTPUT);
   pinMode(YELLOW_LED, OUTPUT);
 
-  CalcWavefront(3,0,2,1);
+//  CalcWavefront(3,0,2,1);
 //  CalcWavefront(0,0,3,1);
-//   CalcWavefront(0,1,2,1);
+//  CalcWavefront(0,1,2,1);
 //  CalcWavefront(1,3,0,1);
+  CalcWavefront(0,0,0,0);
   
   // start in wander state
   bitSet(flag, wander);
@@ -400,37 +410,7 @@ void CalcWavefront(int StartRow, int StartCol, int GoalRow, int GoalCol) {
   int previousStep;                 // what was the last move in the path finding
   byte options[4];                  // store the direction values of left,right,up,down for path finding.
 
-    // Make the o map based on the t map to add 99's
-  for(Trow = 0; Trow < 4; Trow++) {  // rows
-    for(Tcol = 0; Tcol < 4; Tcol++) {  // columns
-      Orow = (Trow * 2) + 1;
-      Ocol = (Tcol * 2) + 1;
-      // NORTH
-      if((Tmap[Trow][Tcol] & B0001) == B0001) { // NORTH
-        Omap[Orow-1][Ocol] = OBSTACLE;
-        Omap[Orow-1][Ocol+1] = OBSTACLE;
-        Omap[Orow-1][Ocol-1] = OBSTACLE;
-      }    
-      if((Tmap[Trow][Tcol] & B0010) == B0010) {  // EAST
-        Omap[Orow][Ocol+1] = OBSTACLE;
-        Omap[Orow+1][Ocol+1] = OBSTACLE;
-        Omap[Orow-1][Ocol+1] = OBSTACLE;
-      }
-      if((Tmap[Trow][Tcol] & B0100) == B0100) { // SOUTH
-        Omap[Orow+1][Ocol] = OBSTACLE;
-        Omap[Orow+1][Ocol+1] = OBSTACLE;
-        Omap[Orow+1][Ocol-1] = OBSTACLE;
-      }
-      if((Tmap[Trow][Tcol] & B1000) == B1000) {  // WEST
-        Omap[Orow][Ocol-1] = OBSTACLE;
-        Omap[Orow+1][Ocol-1] = OBSTACLE;
-        Omap[Orow-1][Ocol-1] = OBSTACLE;
-      }
-      if((Tmap[Trow][Tcol] & B1111) == B1111) {  // ALL
-        Omap[Orow][Ocol] = OBSTACLE;
-      }
-    }
-  } 
+  makeOmapFromTmap();
 
   // make the goal in terms of 9x9 for omap
   GoalRow = (GoalRow * 2) + 1;
@@ -625,6 +605,42 @@ void CalcWavefront(int StartRow, int StartCol, int GoalRow, int GoalCol) {
   Serial.print(directions[7]);
   Serial.print(directions[8]);
   Serial.print(directions[9]);
+}
+
+void makeOmapFromTmap() {
+  int Trow, Tcol, Orow, Ocol;
+  
+  // Make the o map based on the t map to add 99's
+  for(Trow = 0; Trow < 4; Trow++) {  // rows
+    for(Tcol = 0; Tcol < 4; Tcol++) {  // columns
+      Orow = (Trow * 2) + 1;
+      Ocol = (Tcol * 2) + 1;
+      // NORTH
+      if((Tmap[Trow][Tcol] & B0001) == B0001) { // NORTH
+        Omap[Orow-1][Ocol] = OBSTACLE;
+        Omap[Orow-1][Ocol+1] = OBSTACLE;
+        Omap[Orow-1][Ocol-1] = OBSTACLE;
+      }    
+      if((Tmap[Trow][Tcol] & B0010) == B0010) {  // EAST
+        Omap[Orow][Ocol+1] = OBSTACLE;
+        Omap[Orow+1][Ocol+1] = OBSTACLE;
+        Omap[Orow-1][Ocol+1] = OBSTACLE;
+      }
+      if((Tmap[Trow][Tcol] & B0100) == B0100) { // SOUTH
+        Omap[Orow+1][Ocol] = OBSTACLE;
+        Omap[Orow+1][Ocol+1] = OBSTACLE;
+        Omap[Orow+1][Ocol-1] = OBSTACLE;
+      }
+      if((Tmap[Trow][Tcol] & B1000) == B1000) {  // WEST
+        Omap[Orow][Ocol-1] = OBSTACLE;
+        Omap[Orow+1][Ocol-1] = OBSTACLE;
+        Omap[Orow-1][Ocol-1] = OBSTACLE;
+      }
+      if((Tmap[Trow][Tcol] & B1111) == B1111) {  // ALL
+        Omap[Orow][Ocol] = OBSTACLE;
+      }
+    }
+  } 
 }
 
 //Debugging

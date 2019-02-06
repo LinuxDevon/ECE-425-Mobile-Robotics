@@ -1,4 +1,4 @@
-#include <PS2X_lib.h>
+//#include <PS2X_lib.h>
 
 /*RobotReceiver.ino
   Authors: Carlotta Berry, Ricky Rung
@@ -134,7 +134,7 @@ void loop() {
   }
   delay(5);
   radio.stopListening();
-  sendData[0] = 15;
+  sendData[0] = 38;
   radio.write(sendData, sizeof(sendData));
 }
 
