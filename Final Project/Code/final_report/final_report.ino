@@ -999,7 +999,7 @@ void updateIR() {
     bitClear(flag, obRear);          //clear the rear obstacle
 
 
-  if(bitRead(flag, obFront) && !bitRead(flag, obRead) && !bitRead(flag, obLeft) && !bitRead(flag, obRight)) {
+  if(bitRead(flag, obFront) && !bitRead(flag, obRear) && !bitRead(flag, obLeft) && !bitRead(flag, obRight)) {
     tile = N;
   } else if(!bitRead(flag, obFront) && !bitRead(flag, obRear) && !bitRead(flag, obLeft) && bitRead(flag, obRight)) {
     tile = E;
@@ -1117,10 +1117,11 @@ void updateState() {
 */
 void forward2(int dir) {
   long positions[2];                                    // Array of desired stepper positions
+  int correction = 1350;
   stepperRight.setCurrentPosition(0);                   //reset right motor to position 0
   stepperLeft.setCurrentPosition(0);                    //reset left motor to position 0
-  positions[0] = stepperRight.currentPosition() + 400 * dir;  //right motor absolute position
-  positions[1] = stepperLeft.currentPosition() + 400 * dir;   //left motor absolute position
+  positions[0] = stepperRight.currentPosition() + correction * dir;  //right motor absolute position
+  positions[1] = stepperLeft.currentPosition() + correction * dir;   //left motor absolute position
 
   stepperRight.move(positions[0]);    //move right motor to position
   stepperLeft.move(positions[1]);     //move left motor to position
@@ -1140,16 +1141,17 @@ void forward2(int dir) {
 */
 void spin2(int dir) {
   long positions[2];                                    // Array of desired stepper positions
+  int correction = 490;
   stepperRight.setCurrentPosition(0);                   //reset right motor to position 0
   stepperLeft.setCurrentPosition(0);                    //reset left motor to position 0
   if (dir > 0) {//spin right
-    positions[0] = stepperRight.currentPosition() - 200; //right motor absolute position
-    positions[1] = stepperLeft.currentPosition() + 200; //left motor absolute position
+    positions[0] = stepperRight.currentPosition() - correction; //right motor absolute position
+    positions[1] = stepperLeft.currentPosition() + correction; //left motor absolute position
   }
   else//spin left
   {
-    positions[0] = stepperRight.currentPosition() + 200; //right motor absolute position
-    positions[1] = stepperLeft.currentPosition() - 200;  //left motor absolute position
+    positions[0] = stepperRight.currentPosition() + correction; //right motor absolute position
+    positions[1] = stepperLeft.currentPosition() - correction;  //left motor absolute position
   }
   stepperRight.move(positions[0]);    //move right motor to position
   stepperLeft.move(positions[1]);     //move left motor to position
