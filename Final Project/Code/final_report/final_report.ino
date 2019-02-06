@@ -31,6 +31,8 @@
 */
 
 // -- INCLUDES --//
+#include <printf.h>
+#include <RF24_config.h>
 #include <AccelStepper.h>//include the stepper motor library
 #include <MultiStepper.h>//include multiple stepper motor library
 #include <NewPing.h> //include sonar library
@@ -43,6 +45,8 @@
 #define CE_PIN 7
 #define CSN_PIN 8
 RF24 radio(CE_PIN, CSN_PIN);
+#define test_LED 16
+#define team_channel 69   //transmitter and receiver on same channel between 1 & 125
 
 //define stepper motor pin numbers
 #define stepperEnable 48  //stepper enable pin on stepStick
@@ -243,6 +247,18 @@ char directions[10];
 #define WEST  2
 #define EAST  3
 int startingDirection = NORTH;
+
+// Set up constants for movement
+#define FORWARD 1
+#define BACKWARD -1
+#define LEFT 0
+#define RIGHT 1
+
+const uint64_t pipes[2] = {0xE8E8F0F0E1LL, 0xE8E8F0F0A1LL}; //define the radio transmit pipe (5 Byte configurable)
+//RF24 radio(CE_PIN, CSN_PIN);          //create radio object
+uint8_t data[1];                      //variable to hold transmit data
+uint8_t sendData[1];
+
 /*
  * Initialization code
  */
@@ -265,6 +281,13 @@ void setup()
   steppers.addStepper(stepperLeft);           //add left motor to MultiStepper
   digitalWrite(stepperEnable, stepperEnTrue); //turns on the stepper motor driver
   digitalWrite(enableLED, HIGH);              //turn on enable LED
+
+  Serial.begin(9600);//start serial communication
+  radio.begin();//start radio
+  radio.setChannel(team_channel);//set the transmit and receive channels to avoid interference
+  radio.openWritingPipe(pipes[1]);
+  radio.openReadingPipe(1, pipes[0]);//open up reading pipe
+  radio.startListening();//start listening for data;
 
   // timer 1 setup
   Timer1.initialize(timer_int);               //initialize timer1, and set a period in microseconds
@@ -296,8 +319,32 @@ void setup()
  */
 void loop()
 {
-  topo(directions);
+//  topo(directions);
 //  topo("SLLLLT");
+  delay(5);
+  radio.startListening();
+  while (radio.available()) {
+//    Serial.println("test");
+    radio.read(&data, sizeof(data));
+//    Serial.println(data[0]);
+    if(data[0] == 8) {
+      Serial.println("forward");
+      forward2(FORWARD);
+    } else if(data[0] == 2) {
+      Serial.println("backward");
+      forward2(BACKWARD);
+    } else if(data[0] == 4) {
+      Serial.println("left");
+      spin2(LEFT);
+    } else if(data[0] == 6) {
+      Serial.println("right");
+      spin2(RIGHT);
+    }
+  }
+  delay(5);
+  radio.stopListening();
+  sendData[0] = 38;
+  radio.write(sendData, sizeof(sendData));
 }
 
 
@@ -1016,6 +1063,57 @@ void updateState() {
   }
 }
 
+/*
+  Description: 
+    Used to move forward a predefined distance in a given direction
+
+  Input:
+    dir - direction to move
+  
+  Return: nothing
+*/
+void forward2(int dir) {
+  long positions[2];                                    // Array of desired stepper positions
+  stepperRight.setCurrentPosition(0);                   //reset right motor to position 0
+  stepperLeft.setCurrentPosition(0);                    //reset left motor to position 0
+  positions[0] = stepperRight.currentPosition() + 400 * dir;  //right motor absolute position
+  positions[1] = stepperLeft.currentPosition() + 400 * dir;   //left motor absolute position
+
+  stepperRight.move(positions[0]);    //move right motor to position
+  stepperLeft.move(positions[1]);     //move left motor to position
+  bitSet(state, movingL);             //move left wheel
+  bitSet(state, movingR);             //move right wheel
+  runToStop();                        //run until the robot reaches the target
+}
+
+/*
+  Description: 
+    Used to spin a predefined amount in a given direction
+
+  Input:
+    dir - direction to spin
+  
+  Return: nothing
+*/
+void spin2(int dir) {
+  long positions[2];                                    // Array of desired stepper positions
+  stepperRight.setCurrentPosition(0);                   //reset right motor to position 0
+  stepperLeft.setCurrentPosition(0);                    //reset left motor to position 0
+  if (dir > 0) {//spin right
+    positions[0] = stepperRight.currentPosition() - 200; //right motor absolute position
+    positions[1] = stepperLeft.currentPosition() + 200; //left motor absolute position
+  }
+  else//spin left
+  {
+    positions[0] = stepperRight.currentPosition() + 200; //right motor absolute position
+    positions[1] = stepperLeft.currentPosition() - 200;  //left motor absolute position
+  }
+  stepperRight.move(positions[0]);    //move right motor to position
+  stepperLeft.move(positions[1]);     //move left motor to position
+  bitSet(state, movingL);             //move left wheel
+  bitSet(state, movingR);             //move right wheel
+  runToStop();                        //run until the robot reaches the target
+}
 
 /*
   Description: 
