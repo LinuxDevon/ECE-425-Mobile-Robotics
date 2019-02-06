@@ -204,6 +204,7 @@ int topo_check = 1; // counts current state if topological tracking is active
 #define SNW   B1101
 #define SWE   B1110
 #define NSWE  B1111
+byte tile;
 
 // maps for the little robot
 //volatile byte Tmap[4][4] = {{NW, SNW, N, NSWE},
@@ -305,6 +306,32 @@ void loop()
 {
 //  topo(directions);
 //  topo("SLLLLT");
+  delay(5);
+  radio.startListening();
+  while (radio.available()) {
+//    Serial.println("test");
+    radio.read(&data, sizeof(data));
+//    Serial.println(data[0]);
+    if(data[0] == 8) {
+      Serial.println("forward");
+      forward2(FORWARD);
+    } else if(data[0] == 2) {
+      Serial.println("backward");
+      forward2(BACKWARD);
+    } else if(data[0] == 4) {
+      Serial.println("left");
+      spin2(LEFT);
+    } else if(data[0] == 6) {
+      Serial.println("right");
+      spin2(RIGHT);
+    } else if(data[0] == 5) {
+      localize(tile);
+    }
+  }
+  delay(5);
+  radio.stopListening();
+  sendData[0] = 38;
+  radio.write(sendData, sizeof(sendData));
 }
 
 
@@ -1002,12 +1029,52 @@ void updateIR() {
   else
     bitClear(flag, obLeft);           //clear the left obstacle
 
-  if (front < irMin + 2) {  // front wall found within 6 inches
+  if (front < irMin + 6) {  // front wall found within 6 inches
     bitSet(flag, obFront);            //set the front obstacle
   }
   else
     bitClear(flag, obFront);          //clear the front obstacle
 
+  if (back < irMin + 6) {  // back wall found within 6 inches
+    bitSet(flag, obRear);            //set the rear obstacle
+  }
+  else
+    bitClear(flag, obRear);          //clear the rear obstacle
+
+
+  if(bitRead(flag, obFront) && !bitRead(flag, obRead) && !bitRead(flag, obLeft) && !bitRead(flag, obRight)) {
+    tile = N;
+  } else if(!bitRead(flag, obFront) && !bitRead(flag, obRear) && !bitRead(flag, obLeft) && bitRead(flag, obRight)) {
+    tile = E;
+  } else if(bitRead(flag, obFront) && !bitRead(flag, obRear) && !bitRead(flag, obLeft) && bitRead(flag, obRight)) {
+    tile = NE;
+  } else if(!bitRead(flag, obFront) && bitRead(flag, obRear) && !bitRead(flag, obLeft) && !bitRead(flag, obRight)) {
+    tile = S;
+  } else if(bitRead(flag, obFront) && bitRead(flag, obRear) && !bitRead(flag, obLeft) && !bitRead(flag, obRight)) {
+    tile = NS;
+  } else if(!bitRead(flag, obFront) && bitRead(flag, obRear) && !bitRead(flag, obLeft) && bitRead(flag, obRight)) {
+    tile = SE;
+  } else if(bitRead(flag, obFront) && bitRead(flag, obRear) && !bitRead(flag, obLeft) && bitRead(flag, obRight)) {
+    tile = NSE;
+  } else if(!bitRead(flag, obFront) && !bitRead(flag, obRear) && bitRead(flag, obLeft) && !bitRead(flag, obRight)) {
+    tile = W;
+  } else if(bitRead(flag, obFront) && !bitRead(flag, obRear) && bitRead(flag, obLeft) && !bitRead(flag, obRight)) {
+    tile = NW;
+  } else if(!bitRead(flag, obFront) && !bitRead(flag, obRear) && bitRead(flag, obLeft) && bitRead(flag, obRight)) {
+    tile = WE;
+  } else if(bitRead(flag, obFront) && !bitRead(flag, obRear) && bitRead(flag, obLeft) && bitRead(flag, obRight)) {
+    tile = NWE;
+  } else if(!bitRead(flag, obFront) && bitRead(flag, obRear) && bitRead(flag, obLeft) && !bitRead(flag, obRight)) {
+    tile = SW;
+  } else if(bitRead(flag, obFront) && bitRead(flag, obRear) && bitRead(flag, obLeft) && !bitRead(flag, obRight)) {
+    tile = SNW;
+  } else if(!bitRead(flag, obFront) && bitRead(flag, obRear) && bitRead(flag, obLeft) && bitRead(flag, obRight)) {
+    tile = SWE;
+  } else if(bitRead(flag, obFront) && bitRead(flag, obRear) && bitRead(flag, obLeft) && bitRead(flag, obRight)) {
+    tile = NSWE;
+  }
+
+  
   ///////////////////////update variables
   ri_curr = right;             //log current sensor reading [right IR]
   if ((ri_curr > irMax) | (ri_curr < irMin))
