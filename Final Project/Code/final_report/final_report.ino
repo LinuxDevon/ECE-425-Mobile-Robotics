@@ -249,6 +249,18 @@ char directions[10];
 #define WEST  2
 #define EAST  3
 int startingDirection = NORTH;
+
+// Set up constants for movement
+#define FORWARD 1
+#define BACKWARD -1
+#define LEFT 0
+#define RIGHT 1
+
+// Set up the wireless transceiver pins
+#define team_channel 69   //transmitter and receiver on same channel between 1 & 125
+
+const uint64_t pipes[2] = {0xE8E8F0F0E1LL, 0xE8E8F0F0A1LL}; //define the radio transmit pipe (5 Byte configurable)
+uint8_t data[1], sendData[1]; // wireless array 
 /*
  * Initialization code
  */
@@ -278,7 +290,11 @@ void setup()
 
   // serial setup
   Serial.begin(baud_rate);                    //start serial communication in order to debug the software while coding
-  delay(1500);                                //wait 1.5 seconds before robot moves
+  radio.begin();//start radio
+  radio.setChannel(team_channel);//set the transmit and receive channels to avoid interference
+  radio.openWritingPipe(pipes[1]);
+  radio.openReadingPipe(1, pipes[0]);//open up reading pipe
+  radio.startListening();//start listening for data;
 
   // LED SETUP
   // set as outputs
@@ -293,7 +309,8 @@ void setup()
 //  CalcWavefront(0,1,2,1);
 //  CalcWavefront(1,3,0,1);
 //  CalcWavefront(0,0,0,0);
-  
+
+  delay(1500);                                //wait 1.5 seconds before robot moves
   // start in wander state
   bitSet(flag, wander);
 
