@@ -216,14 +216,14 @@ byte tile;
 //                            {WE, NSWE, NSWE, WE},
 //                            {SWE, SNW, NS, SE}};
 
-//volatile byte Tmap[4][4] = {{NWE, NSWE, NSWE, NWE},   // occupancy grid
-//                            {W, NS, NS, E},
-//                            {WE, NSWE, NSWE, WE},
-//                            {SWE, NSWE, NSWE, SWE}};
-volatile byte Tmap[4][4] = {{NWE, NWE, NWE, NWE},       // topological grid
-                            {WE, W, E, WE},
-                            {W, E, W, E},
+volatile byte Tmap[4][4] = {{NWE, NSWE, NSWE, NWE},   // occupancy grid
+                            {W, NS, NS, E},
+                            {WE, NSWE, NSWE, WE},
                             {SWE, NSWE, NSWE, SWE}};
+//volatile byte Tmap[4][4] = {{NWE, NWE, NWE, NWE},       // topological grid
+//                            {WE, W, E, WE},
+//                            {W, E, W, E},
+//                            {SWE, NSWE, NSWE, SWE}};
 volatile byte LocalMap[4][4] = {{0, 0, 0, 0},
                                 {0, 0, 0, 0},
                                 {0, 0, 0, 0},
@@ -249,6 +249,8 @@ char directions[10];
 #define WEST  2
 #define EAST  3
 int startingDirection = NORTH;
+#define goalRow 3
+#define goalCol 0
 
 // Set up constants for movement
 #define FORWARD 1
@@ -258,9 +260,12 @@ int startingDirection = NORTH;
 
 // Set up the wireless transceiver pins
 #define team_channel 69   //transmitter and receiver on same channel between 1 & 125
+bool writeArray;
 
-const uint64_t pipes[2] = {0xE8E8F0F0E1LL, 0xE8E8F0F0A1LL}; //define the radio transmit pipe (5 Byte configurable)
-uint8_t data[1], sendData[1]; // wireless array 
+const uint64_t pipes[2] = {0xE8E8F0F0E1LL, 0xE8E8F0E07DLL}; //define the radio transmit pipe (5 Byte configurable)
+uint8_t data[1], sendData[81], sendRow[9]; // wireless array 
+int sendRowIndex = 0;
+
 /*
  * Initialization code
  */
@@ -302,6 +307,10 @@ void setup()
   pinMode(GREEN_LED, OUTPUT);
   pinMode(YELLOW_LED, OUTPUT);
 
+  delay(1500);                                //wait 1.5 seconds before robot moves
+
+  writeArray = false;
+  
   makeOmapFromTmap();
   printArray();       // show the inital array
 //  CalcWavefront(3,0,2,1);
@@ -310,12 +319,12 @@ void setup()
 //  CalcWavefront(1,3,0,1);
 //  CalcWavefront(0,0,0,0);
 
-  delay(1500);                                //wait 1.5 seconds before robot moves
   // start in wander state
   bitSet(flag, wander);
 
 }
 
+int i, index;
 /*
  * Main program to continuously call
  */
@@ -343,12 +352,31 @@ void loop()
       spin2(RIGHT);
     } else if(data[0] == 5) {
       localize(tile);
+    } else if(data[0] == 1) {
+      while(1) { 
+        topo(directions);
+      }
     }
   }
-  delay(5);
-  radio.stopListening();
-  sendData[0] = 38;
-  radio.write(sendData, sizeof(sendData));
+//  delay(5);
+//  radio.stopListening();
+//  if(writeArray == true) {
+//    if(sendRowIndex != 9) {
+//      index = 0;
+//      for(i = sendRowIndex*8; i <= sendRowIndex*8+8; i++) {
+//        sendRow[index] = sendData[i];
+//        index++;
+//        Serial.print(sendRow[index]);
+//        Serial.print(", ");
+//      }
+//      Serial.println();
+//    }
+//    radio.write(sendRow, sizeof(sendRow));
+//    if(sendRowIndex == 8) {
+//      writeArray = false;
+//    }
+//    sendRowIndex++;
+//  }
 }
 
 
@@ -418,6 +446,104 @@ void topo(char *instr) {
       exit(0);
     }  
   }
+}
+
+///////////////////////////////////////////////////////////
+// LOCALIZATION SECTION
+///////////////////////////////////////////////////////////
+void localize(byte tile){
+  int row, col, numOfCorrectTiles;
+  int correctRow, correctCol;
+
+  // print the tile that is uses for the one the robot is in
+  Serial.print("Tile: ");
+  Serial.println(tile);
+  
+  // assume we are looking for next step
+  localStep += 1;
+  for(row = 0; row < 4; row++) {
+    for(col = 0; col < 4; col++) {
+      if(Tmap[row][col] == tile) {   // compare if the tile is the same
+         if(row-1 >= 0){
+          if(LocalMap[row-1][col] == localStep-1){
+            LocalMap[row][col] = localStep;
+          }
+         }
+         if(row+1 <= 3){
+          if(LocalMap[row+1][col] == localStep-1) {
+            LocalMap[row][col] = localStep;
+          }
+         }
+         if(col-1 >= 0) {
+          if(LocalMap[row][col-1] == localStep-1){
+            LocalMap[row][col] = localStep;
+          }
+         }
+         if(col+1 <= 3) {
+          if(LocalMap[row][col+1] == localStep-1) {
+            LocalMap[row][col] = localStep;
+          }
+         }
+      }
+    }
+  }
+
+  numOfCorrectTiles = 0;
+  
+  // check if there is only one tile with the correct step
+  // this means we know where we are
+  for(row = 0; row < 4; row++) {
+    for(col = 0; col < 4; col++) {
+      if(LocalMap[row][col] == localStep) {
+        correctRow = row;
+        correctCol = col; // save where it is at
+        numOfCorrectTiles++;
+      }
+    }
+  }
+  
+  if(numOfCorrectTiles == 1) {
+    // found the location!
+    // print the array
+    Omap[correctRow*2+1][correctCol*2+1] = 25;
+    printArray();       // array with the positions found
+    Omap[correctRow*2+1][correctCol*2+1] = 0;
+
+//    row = correctRow;
+//    col = correctCol;
+//    while(1) {
+//      if(LocalMap[row][col] == 1) { // found start
+//        break;
+//      }
+//      if(row-1 >= 0){
+//        if(LocalMap[row-1][col] == localStep-1){
+//          row = row-1;
+//        }
+//      }
+//      if(row+1 <= 3){
+//        if(LocalMap[row+1][col] == localStep-1) {
+//          row = row+1;
+//        }
+//      }
+//      if(col-1 >= 0) {
+//        if(LocalMap[row][col-1] == localStep-1){
+//          col = col-1;
+//        }
+//      }
+//      if(col+1 <= 3) {
+//        if(LocalMap[row][col+1] == localStep-1) {
+//          col = col+1;
+//        }
+//      }
+//    }
+//    Omap[row][col] = 33;
+//    printArray();       // array with the positions found
+//    Omap[row][col] = 0;
+
+    CalcWavefront(correctRow, correctCol, goalRow, goalCol);
+    
+  }
+
 }
 
 
@@ -692,70 +818,10 @@ void makeOmapFromTmap() {
   } 
 }
 
-///////////////////////////////////////////////////////////
-// LOCALIZATION SECTION
-///////////////////////////////////////////////////////////
-void localize(byte tile){
-  int row, col, numOfCorrectTiles;
-  int correctRow, correctCol;
-
-  // print the tile that is uses for the one the robot is in
-  
-  // assume we are looking for next step
-  localStep += 1;
-  for(row = 0; row < 4; row++) {
-    for(col = 0; col < 4; col++) {
-      if(Tmap[row][col] == tile) {   // compare if the tile is the same
-         if(row-1 >= 0){
-          if(LocalMap[row-1][col] == localStep-1){
-            LocalMap[row][col] = localStep;
-          }
-         }
-         if(row+1 <= 3){
-          if(LocalMap[row+1][col] == localStep-1) {
-            LocalMap[row][col] = localStep;
-          }
-         }
-         if(col-1 >= 0) {
-          if(LocalMap[row][col-1] == localStep-1){
-            LocalMap[row][col] = localStep;
-          }
-         }
-         if(col+1 <= 3) {
-          if(LocalMap[row][col+1] == localStep-1) {
-            LocalMap[row][col] = localStep;
-          }
-         }
-      }
-    }
-  }
-
-  numOfCorrectTiles = 0;
-  
-  // check if there is only one tile with the correct step
-  // this means we know where we are
-  for(row = 0; row < 4; row++) {
-    for(col = 0; col < 4; col++) {
-      if(LocalMap[row][col] == localStep) {
-        correctRow = row;
-        correctCol = col; // save where it is at
-        numOfCorrectTiles++;
-      }
-    }
-  }
-
-  if(numOfCorrectTiles == 1) {
-    // found the location!
-    // print the array
-    Omap[correctRow][correctCol] = 25;
-    printArray();
-  }
-
-}
-
 //Debugging
 void printArray() {
-  int col, row;
+  int col, row, sendPos;
+  sendPos = 0;
   Serial.println("=============================================");
   for(row = 0; row < 9; row++){
     Serial.print("[");
@@ -766,11 +832,16 @@ void printArray() {
       } else {
         Serial.print(Omap[row][col]);
       }
+      sendRow[col] = Omap[row][col];
       Serial.print(", ");
     }
-    Serial.println("]");  
+    Serial.println("]"); 
+    delay(5);
+    radio.stopListening(); 
+    radio.write(sendRow, sizeof(sendRow));
   }
   Serial.println("=============================================");
+//  writeArray = true;
 }
 /*
   Description: 
