@@ -46,6 +46,7 @@ RF24 radio(CE_PIN, CSN_PIN);          //create radio object
 uint8_t data[1];                      //variable to hold transmit data
 
 int i;
+int rowCount = 0;
 
 void setup() {
   Serial.begin(9600);//start serial communication
@@ -80,6 +81,11 @@ void loop() {
       Serial.print(recieveInfo[i]);
       Serial.print(", ");
     }
+    rowCount++;
     Serial.println();
+    if(rowCount == 9) {
+      Serial.println();
+      rowCount = 0;
+    }
   }
 }
