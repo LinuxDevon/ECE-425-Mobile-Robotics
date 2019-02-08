@@ -503,30 +503,56 @@ void localize(byte tile){
   for(row = 0; row < 4; row++) {
     for(col = 0; col < 4; col++) {
       if(Tmap[row][col] == tile) {   // compare if the tile is the same
+        Serial.print("Row: ");
+        Serial.print(row);
+        Serial.print(" Col: ")
+        Serial.println(col);
          if(row-1 >= 0){
-          if((LocalMap[row-1][col] == localStep-1) && (Tmap[row-1][col] & S != S)){
+          Serial.print("row-1: ");
+          Serial.print(Tmap[row-1][col]);
+          Serial.print("   ");
+          Serial.println(Tmap[row-1][col] & S);
+          // North Check
+          if((LocalMap[row-1][col] == localStep-1) && ((Tmap[row-1][col] & S) != 0)){
             LocalMap[row][col] = localStep;
           }
          }
          if(row+1 <= 3){
-          if((LocalMap[row+1][col] == localStep-1) && (Tmap[row+1][col] & N != N)) {
+          Serial.print("row+1: ");
+          Serial.print(Tmap[row+1][col]);
+          Serial.print("   ");
+          Serial.println(Tmap[row+1][col] & N);
+          // South Check
+          if((LocalMap[row+1][col] == localStep-1) && ((Tmap[row+1][col] & N) == 0)) {
             LocalMap[row][col] = localStep;
           }
          }
          if(col-1 >= 0) {
-          if((LocalMap[row][col-1] == localStep-1) && (Tmap[row+1][col] & E != E)){
+          Serial.print("col-1: ");
+          Serial.print(Tmap[row][col-1]);
+          Serial.print("   ");
+          Serial.println(Tmap[row][col-1] & E);
+          // West Check
+          if((LocalMap[row][col-1] == localStep-1) && ((Tmap[row][col-1] & E) == 0)){
             LocalMap[row][col] = localStep;
           }
          }
          if(col+1 <= 3) {
-          if((LocalMap[row][col+1] == localStep-1) && (Tmap[row+1][col] & W != W)) {
+          Serial.print("col+1: ");
+          Serial.print(Tmap[row][col+1]);
+          Serial.print("   ");
+          Serial.println(Tmap[row][col+1] & S);
+          // East Check
+          if((LocalMap[row][col+1] == localStep-1) && ((Tmap[row][col+1] & W) == 0)) {
             LocalMap[row][col] = localStep;
           }
          }
       }
     }
+    Serial.println();
   }
 
+  // print the local map for testing purposes -- REMOVE for FINAL CODE
   for(row=0; row<4; row++) {
     for(col=0; col<4; col++) {
       Serial.print(LocalMap[row][col]);
@@ -733,6 +759,12 @@ void CalcWavefront(int StartRow, int StartCol, int GoalRow, int GoalCol) {
     // pick the direction that is the smallest
     switch(smallestIndex) {
       case 0: // South
+        // check if the robot needs to turn around to face starting direction
+        if(directionStep == 1 && startingDirection == NORTH) {
+          // spin left twice to face south
+          spin2(LEFT);
+          spin2(LEFT);
+        }
         if(previousStep == 2) { // just turned right
           directions[directionIndex] = 'R';
           directionIndex++;
