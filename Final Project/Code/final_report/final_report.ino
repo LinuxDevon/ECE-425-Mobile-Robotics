@@ -266,6 +266,8 @@ const uint64_t pipes[2] = {0xE8E8F0F0E1LL, 0xE8E8F0E07DLL}; //define the radio t
 uint8_t data[1], sendData[81], sendRow[9]; // wireless array 
 uint8_t seperator[9] = {'=','=','=','=','=','=','=','='};
 int sendRowIndex = 0;
+int eastCounter = 0;
+int northCounter = 0;
 
 /*
  * Initialization code
@@ -366,6 +368,7 @@ void loop()
         topo(directions);
       }
     }
+  }
 
     
 //  if(!bitRead(flag,obFront)) {
@@ -520,45 +523,12 @@ void localize(byte tile){
     row = correctRow;
     col = correctCol;
 
-    
+    row += northCounter;
+    col += eastCounter;
+
     Serial.print(row);
     Serial.println(col);
-    Serial.println(localStep);
-    while(1) {
-      Serial.println(localStep);
-      Serial.print(row);
-      Serial.println(col);
-      Serial.print(LocalMap[row-1][col]);
-      Serial.print(LocalMap[row+1][col]);
-      Serial.print(LocalMap[row][col-1]);
-      Serial.println(LocalMap[row][col+1]);
-      if(LocalMap[row][col] == 0) { // found start
-        break;
-      }
-      if(row-1 >= 0){
-        if(LocalMap[row-1][col] == localStep-1){
-          row = row-1;
-          localStep--;
-        }
-      }else if(row+1 <= 3){
-        Serial.println("HEre");
-        if(LocalMap[row+1][col] == localStep-1) {
-          row = row+1;
-          localStep--;
-        }
-      }else if(col-1 >= 0) {
-        if(LocalMap[row][col-1] == localStep-1){
-          col = col-1;
-          localStep--;
-        }
-      }else if(col+1 <= 3) {
-        if(LocalMap[row][col+1] == localStep-1) {
-          col = col+1;
-          localStep--;
-        }
-      }
-      
-    }
+    
     Omap[row*2+1][col*2+1] = 33;
     printArray();       // array with the positions found
     Omap[row*2+1][col*2+1] = 0;
