@@ -216,14 +216,14 @@ byte tile;
 //                            {WE, NSWE, NSWE, WE},
 //                            {SWE, SNW, NS, SE}};
 
-volatile byte Tmap[4][4] = {{NWE, NSWE, NSWE, NWE},   // occupancy grid
-                            {W, NS, NS, E},
-                            {WE, NSWE, NSWE, WE},
-                            {SWE, NSWE, NSWE, SWE}};
-//volatile byte Tmap[4][4] = {{NWE, NWE, NWE, NWE},       // topological grid
-//                            {WE, W, E, WE},
-//                            {W, E, W, E},
+//volatile byte Tmap[4][4] = {{NWE, NSWE, NSWE, NWE},   // occupancy grid
+//                            {W, NS, NS, E},
+//                            {WE, NSWE, NSWE, WE},
 //                            {SWE, NSWE, NSWE, SWE}};
+volatile byte Tmap[4][4] = {{NWE, NWE, NWE, NWE},       // topological grid
+                            {WE, W, E, WE},
+                            {W, E, W, E},
+                            {SWE, NSWE, NSWE, SWE}};
 volatile byte LocalMap[4][4] = {{0, 0, 0, 0},
                                 {0, 0, 0, 0},
                                 {0, 0, 0, 0},
@@ -250,7 +250,7 @@ char directions[10];
 #define EAST  3
 int startingDirection = NORTH;
 #define goalRow 3
-#define goalCol 0
+#define goalCol 3
 
 // Set up constants for movement
 #define FORWARD 1
@@ -268,6 +268,7 @@ uint8_t seperator[9] = {'=','=','=','=','=','=','=','='};
 int sendRowIndex = 0;
 int eastCounter = 0;
 int northCounter = 0;
+bool foundTile = false;
 
 /*
  * Initialization code
@@ -328,6 +329,7 @@ void setup()
 }
 
 int i, index;
+bool wentBack;
 /*
  * Main program to continuously call
  */
@@ -335,6 +337,11 @@ void loop()
 {
 //  topo(directions);
 //  topo("SLLLLT");
+  ManualLocalize();
+//  AutoLocalize();
+}
+
+void ManualLocalize() {
   delay(5);
   radio.startListening();
   while (radio.available()) {
@@ -369,27 +376,43 @@ void loop()
       }
     }
   }
-
-    
-//  if(!bitRead(flag,obFront)) {
-//    forward2(FORWARD);
-//    northCounter++;
-//  } else if(!bitRead(flag,obLeft)) {
-//    spin2(LEFT);
-//    forward2(FORWARD);
-//    spin2(RIGHT);
-//    eastCounter--;
-//  } else if(!bitRead(flag,obRight)) {
-//    spin2(RIGHT);
-//    forward2(FORWARD);
-//    spin2(LEFT);
-//    eastCounter++;
-//  } else if(!bitRead(flag,obRear)) {
-//    forward2(BACKWARD);
-//    northCounter--;
-//  }
 }
 
+void AutoLocalize() {
+  localize(tile);
+  delay(200);
+  if(foundTile == true) {
+//    Serial.println(directionss);
+    while(1) { 
+      topo(directions);
+    }
+  }
+  if(!bitRead(flag,obFront) && wentBack == false) {
+    forward2(FORWARD);
+    northCounter++;
+    wentBack = false;
+    delay(200);
+  } else if(!bitRead(flag,obLeft)) {
+    spin2(LEFT);
+    forward2(FORWARD);
+    spin2(RIGHT);
+    wentBack = false;
+    eastCounter--;
+    delay(200);
+  } else if(!bitRead(flag,obRight)) {
+    spin2(RIGHT);
+    forward2(FORWARD);
+    spin2(LEFT);
+    wentBack = false;
+    eastCounter++;
+    delay(200);
+  } else if(!bitRead(flag,obRear)) {
+    forward2(BACKWARD);
+    wentBack = true;
+    northCounter--;
+    delay(200);
+  }
+}
 
 ///////////////////////////////////////////////////////////
 // TOPOLOGICAL
@@ -481,27 +504,35 @@ void localize(byte tile){
     for(col = 0; col < 4; col++) {
       if(Tmap[row][col] == tile) {   // compare if the tile is the same
          if(row-1 >= 0){
-          if(LocalMap[row-1][col] == localStep-1){
+          if((LocalMap[row-1][col] == localStep-1) && (Tmap[row-1][col] & S != S)){
             LocalMap[row][col] = localStep;
           }
          }
          if(row+1 <= 3){
-          if(LocalMap[row+1][col] == localStep-1) {
+          if((LocalMap[row+1][col] == localStep-1) && (Tmap[row+1][col] & N != N)) {
             LocalMap[row][col] = localStep;
           }
          }
          if(col-1 >= 0) {
-          if(LocalMap[row][col-1] == localStep-1){
+          if((LocalMap[row][col-1] == localStep-1) && (Tmap[row+1][col] & E != E)){
             LocalMap[row][col] = localStep;
           }
          }
          if(col+1 <= 3) {
-          if(LocalMap[row][col+1] == localStep-1) {
+          if((LocalMap[row][col+1] == localStep-1) && (Tmap[row+1][col] & W != W)) {
             LocalMap[row][col] = localStep;
           }
          }
       }
     }
+  }
+
+  for(row=0; row<4; row++) {
+    for(col=0; col<4; col++) {
+      Serial.print(LocalMap[row][col]);
+      Serial.print(", ");
+    }
+    Serial.println();
   }
 
   numOfCorrectTiles = 0;
@@ -539,7 +570,8 @@ void localize(byte tile){
     Omap[row*2+1][col*2+1] = 0;
 
     CalcWavefront(correctRow, correctCol, goalRow, goalCol);
-    
+
+    foundTile = true;
   }
 
 }
