@@ -342,15 +342,23 @@ void loop()
     if(data[0] == 8) {
       Serial.println("forward");
       forward2(FORWARD);
+      northCounter++;
     } else if(data[0] == 2) {
       Serial.println("backward");
       forward2(BACKWARD);
+      northCounter--;
     } else if(data[0] == 4) {
       Serial.println("left");
       spin2(LEFT);
+      forward2(FORWARD);
+      spin2(RIGHT);
+      eastCounter--;
     } else if(data[0] == 6) {
       Serial.println("right");
       spin2(RIGHT);
+      forward2(FORWARD);
+      spin2(LEFT);
+      eastCounter++;
     } else if(data[0] == 5) {
       localize(tile);
     } else if(data[0] == 1) {
@@ -358,25 +366,24 @@ void loop()
         topo(directions);
       }
     }
-  }
-//  delay(5);
-//  radio.stopListening();
-//  if(writeArray == true) {
-//    if(sendRowIndex != 9) {
-//      index = 0;
-//      for(i = sendRowIndex*8; i <= sendRowIndex*8+8; i++) {
-//        sendRow[index] = sendData[i];
-//        index++;
-//        Serial.print(sendRow[index]);
-//        Serial.print(", ");
-//      }
-//      Serial.println();
-//    }
-//    radio.write(sendRow, sizeof(sendRow));
-//    if(sendRowIndex == 8) {
-//      writeArray = false;
-//    }
-//    sendRowIndex++;
+
+    
+//  if(!bitRead(flag,obFront)) {
+//    forward2(FORWARD);
+//    northCounter++;
+//  } else if(!bitRead(flag,obLeft)) {
+//    spin2(LEFT);
+//    forward2(FORWARD);
+//    spin2(RIGHT);
+//    eastCounter--;
+//  } else if(!bitRead(flag,obRight)) {
+//    spin2(RIGHT);
+//    forward2(FORWARD);
+//    spin2(LEFT);
+//    eastCounter++;
+//  } else if(!bitRead(flag,obRear)) {
+//    forward2(BACKWARD);
+//    northCounter--;
 //  }
 }
 
