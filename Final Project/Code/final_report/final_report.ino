@@ -429,24 +429,29 @@ void topo(char *instr) {
   // turns around corners if instructions call for it
   if(ri_curr > 12 || li_curr > 12) {
     if(topo_current == 'R') {
-      spin(quarter_rotation+50,1);
-      forward(half_rotation);
-      spin(quarter_rotation+15,1);
-      forward(one_rotation);
-      forward(half_rotation);
+//      spin(quarter_rotation+50,1);
+//      forward(half_rotation);
+//      spin(quarter_rotation+15,1);
+//      forward(one_rotation);
+//      forward(half_rotation);
+      spin2(RIGHT);
+      forward2(FORWARD);
       topo_check++;
       topo_current = instr[topo_check];
     } else if(topo_current == 'L') {
-      spin(quarter_rotation+50,0);
-      forward(half_rotation);
-      spin(quarter_rotation+50,0);
-      forward(one_rotation);
-      forward(half_rotation);
+//      spin(quarter_rotation+50,0);
+//      forward(half_rotation);
+//      spin(quarter_rotation+50,0);
+//      forward(one_rotation);
+//      forward(half_rotation);
+      spin2(LEFT);
+      forward2(FORWARD);
       topo_check++;
       topo_current = instr[topo_check];
     } else if(topo_current == 'F') {
-      forward(one_rotation);
-      forward(half_rotation);
+//      forward(one_rotation);
+//      forward(half_rotation);
+      forward2(FORWARD);
       topo_check++;
       topo_current = instr[topo_check];
     }
