@@ -220,10 +220,10 @@ byte tile;
 //                            {W, NS, NS, E},
 //                            {WE, NSWE, NSWE, WE},
 //                            {SWE, NSWE, NSWE, SWE}};
-volatile byte Tmap[4][4] = {{NWE, NWE, NWE, NWE},       // topological grid
-                            {WE, W, E, WE},
-                            {W, E, W, E},
-                            {SWE, NSWE, NSWE, SWE}};
+//volatile byte Tmap[4][4] = {{NWE, NWE, NWE, NWE},       // topological grid
+//                            {WE, W, E, WE},
+//                            {W, E, W, E},
+//                            {SWE, NSWE, NSWE, SWE}};
 volatile byte LocalMap[4][4] = {{0, 0, 0, 0},
                                 {0, 0, 0, 0},
                                 {0, 0, 0, 0},
@@ -339,6 +339,37 @@ void loop()
 //  topo("SLLLLT");
 //  ManualLocalize();
   AutoLocalize();
+}
+
+void ManualMapping() {
+  delay(5);
+  radio.startListening();
+  while (radio.available()) {
+    radio.read(&data, sizeof(data));
+    if(data[0] == 8) {
+      Serial.println("forward");
+      forward2(FORWARD);
+      northCounter++;
+    } else if(data[0] == 2) {
+      Serial.println("backward");
+      forward2(BACKWARD);
+      northCounter--;
+    } else if(data[0] == 4) {
+      Serial.println("left");
+      spin2(LEFT);
+      forward2(FORWARD);
+      spin2(RIGHT);
+      eastCounter--;
+    } else if(data[0] == 6) {
+      Serial.println("right");
+      spin2(RIGHT);
+      forward2(FORWARD);
+      spin2(LEFT);
+      eastCounter++;
+    } else if(data[0] == 5) {
+      updateMap(tile, northCounter, eastCounter);
+    }
+  }
 }
 
 void ManualLocalize() {
@@ -487,6 +518,16 @@ void topo(char *instr) {
     }  
   }
 }
+
+///////////////////////////////////////////////////////////
+// MAPPING SECTION
+///////////////////////////////////////////////////////////
+void updateMap(byte tile, int r, int c) {
+  TMap[r][c] = tile;
+  makeOmapFromTmap();
+  printArray();
+}
+
 
 ///////////////////////////////////////////////////////////
 // LOCALIZATION SECTION
