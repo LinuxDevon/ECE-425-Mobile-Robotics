@@ -228,6 +228,10 @@ volatile byte LocalMap[4][4] = {{0, 0, 0, 0},
                                 {0, 0, 0, 0},
                                 {0, 0, 0, 0},
                                 {0, 0, 0, 0}};
+volatile byte Tmap[4][4] = {{0, 0, 0, 0},
+                            {0, 0, 0, 0},
+                            {0, 0, 0, 0},
+                            {0, 0, 0, 0}};
 int localStep = 0;
                                                         
 volatile byte Omap[9][9] = {{0, 0, 0, 0, 0, 0, 0, 0, 0},
@@ -269,6 +273,9 @@ int sendRowIndex = 0;
 int eastCounter = 0;
 int northCounter = 0;
 bool foundTile = false;
+
+int i, index;
+bool wentBack;
 
 /*
  * Initialization code
@@ -315,8 +322,8 @@ void setup()
 
   writeArray = false;
   
-  makeOmapFromTmap();
-  printArray();       // show the inital array
+//  makeOmapFromTmap();
+//  printArray();       // show the inital array
 //  CalcWavefront(3,0,2,1);
 //  CalcWavefront(0,0,3,1);
 //  CalcWavefront(0,1,2,1);
@@ -328,8 +335,6 @@ void setup()
 
 }
 
-int i, index;
-bool wentBack;
 /*
  * Main program to continuously call
  */
@@ -338,7 +343,8 @@ void loop()
 //  topo(directions);
 //  topo("SLLLLT");
 //  ManualLocalize();
-  AutoLocalize();
+//  AutoLocalize();
+  ManualMapping();
 }
 
 void ManualMapping() {
@@ -523,9 +529,9 @@ void topo(char *instr) {
 // MAPPING SECTION
 ///////////////////////////////////////////////////////////
 void updateMap(byte tile, int r, int c) {
-  TMap[r][c] = tile;
-  makeOmapFromTmap();
-  printArray();
+//  Tmap[r][c] = tile;
+//  makeOmapFromTmap();
+//  printArray();
 }
 
 
@@ -925,197 +931,6 @@ void printArray() {
     radio.write(sendRow, sizeof(sendRow));
   }
   Serial.println("=============================================");
-}
-/*
-  Description: 
-    
-  
-  Input: nothing
-  
-  Return: nothing
-*/
-void FollowPath() {
-
-}
-/*
-  Description: 
-    Follows walls using a proportional control. This means that it turns proportional to the error
-    which is the distnace minus the 4-6 inch band it is trying to stay in. There is a gain value 
-    that is adjusted by us to smooth the robot.
-
-  Yellow,Red LED        - within 4-6 inches
-  Yellow LED            - too close 2-4 inches
-  Green,Yellow,Red LED  - follow center
-  Red LED               - too far > 6 inches away
-  Red,Green LED         - Front wall found
-  Red,Yellow LED        - right wall follow
-  Green,Yellow LED      - left wall follow 
-  Green LED             - random wander
-  No LED                - wall lost
-  
-  Input: nothing
-  
-  Return: nothing
-*/
-void wallP() {
-  // gain values are independent to turn right and left seperatley if needed
-  float Pg_right = 0.75;
-  float Pg_left = Pg_right;
-  int r_turn = abs(eighth_rotation*ri_cerror*Pg_right);
-  int l_turn = abs(eighth_rotation*li_cerror*Pg_left);
-
-  // right wall found
-  if (bitRead(state, fright)) {
-    rightState = TRUE;  // set the state that there is a right wall when turing corners
-    leftState = FALSE;
-    if (bitRead(flag, obFront)) { //check for a front wall before moving
-      //make left turn if wall found
-      delay(200);
-      reverse(eighth_rotation);  //back up
-      delay(200);
-      spin(half_rotation, 0);    //turn left
-      delay(200);
-    }
-    if (ri_cerror == 0) { // robot within 4-6 inches
-      digitalWrite(YELLOW_LED, HIGH);   // turn on the yellow led for this function
-      digitalWrite(RED_LED, HIGH);      // turn on the red led for this function
-      forward(quarter_rotation);        //move robot forward
-      digitalWrite(YELLOW_LED, LOW);    // turn off the yellow led for this function
-      digitalWrite(RED_LED, LOW);       // turn off the red led for this function
-    }
-    else {
-      if (ri_cerror > 0 && rs_curr < irMin && rs_curr > 1) {  // too close 4 ~ 2 inches aways
-        digitalWrite(YELLOW_LED, HIGH);
-        pivot(r_turn, 0);      //pivot left
-        delay(200);
-        pivot(r_turn, 1);     //pivot right to straighten up
-        delay(200);
-        digitalWrite(YELLOW_LED, LOW);
-      }
-      else if (ri_cerror > 0 && rs_curr <= 1) { // way to close 0~2 inches
-        digitalWrite(YELLOW_LED, HIGH);
-        pivot(one_rotation, 1);   // pivot right 
-        delay(200);
-        reverse(eighth_rotation); // backup at the pivot angle
-        delay(200);
-        pivot(-one_rotation, 1);  // straigten back up pivot left
-        delay(200);
-        digitalWrite(YELLOW_LED, LOW);
-      }
-      else if (ri_cerror < 0 && rs_curr > irMax) {     //positive error means too far > 6 inches
-        digitalWrite(RED_LED, HIGH);
-        pivot(r_turn, 1);      //pivot right
-        delay(200);
-        pivot(r_turn, 0);   //pivot left to straighten up
-        delay(200);
-        digitalWrite(RED_LED, LOW);
-      }
-    }
-  }
-  // found left wall
-  else if (bitRead(state, fleft)  ) {
-    rightState = FALSE; 
-    leftState = TRUE;   // indicate that a left wall was found to tell corners
-    if (bitRead(flag, obFront)) { //check for a front wall before moving forward
-      //make left turn if wall found
-      delay(200);
-      reverse(eighth_rotation);    //back up
-      delay(200);
-      spin(half_rotation, 1);      //turn right
-      delay(200);
-    }
-    if (li_cerror == 0) {   // robot within 4-6 inches
-      digitalWrite(YELLOW_LED, HIGH);  // turn on the yellow led for this function
-      digitalWrite(GREEN_LED, HIGH);  // turn on the green led for this function
-      forward(quarter_rotation);      //move robot forward
-      digitalWrite(YELLOW_LED, LOW);  // turn off the yellow led for this function
-      digitalWrite(GREEN_LED, LOW);  // turn off the green led for this function
-    }
-    else {
-      if (li_cerror > 0 && ls_curr < irMin && ls_curr > 1) { // too close within 2~4 inches
-        digitalWrite(YELLOW_LED, HIGH);  // turn on the yellow led for this function
-        pivot(l_turn, 1);      //pivot right
-        delay(200);
-        pivot(l_turn, 0);     //pivot left
-        delay(200);
-        digitalWrite(YELLOW_LED, LOW);  // turn on the yellow led for this function
-      }
-      else if (li_cerror > 0 && ls_curr <= 1) {   // way too close within 0~2 inches
-        digitalWrite(YELLOW_LED, HIGH);
-        pivot(one_rotation, 0);     // pivot left  
-        delay(200);
-        reverse(eighth_rotation);   // backup at the pivoted angle
-        delay(200);
-        pivot(-one_rotation, 0);    // straighten back up by pivoting right
-        delay(200);
-        digitalWrite(YELLOW_LED, LOW);
-      }
-      else if (li_cerror < 0 && ls_curr > irMax)  { // too far >6 inches
-        digitalWrite(RED_LED, HIGH);  // turn on the red led for this function
-        pivot(l_turn, 0);      //pivot left
-        delay(200);
-        pivot(l_turn, 1);   //pivot right
-        delay(200);
-        digitalWrite(RED_LED, LOW);  // turn off the red led for this function
-      }
-    }
-  }
-  // follow hallway
-  else if (bitRead(state, center) ) {
-    digitalWrite(RED_LED, HIGH);  // turn on the red led for this function
-    digitalWrite(GREEN_LED, HIGH);  // turn on the green led for this function
-    digitalWrite(YELLOW_LED, HIGH);  // turn on the yellow led for this function
-    if (((ri_cerror == 0) && (li_cerror == 0)) || (derror == 0)) { // centered in the hallway
-      forward(half_rotation);          //drive robot forward
-    }
-    else {
-      //try to average the error between the left and right to center the robot
-      if (derror > 0) {
-        spin(eighth_rotation, 1);        //spin right, the left error is larger
-        pivot(quarter_rotation, 0);       //pivot left to adjust forward
-      }
-      else
-      {
-        spin(eighth_rotation, 0);        //spin left the right error is larger
-        pivot(quarter_rotation, 1);       //pivot right to adjust forward
-      }
-    }
-    digitalWrite(RED_LED, LOW);  // turn off the red led for this function
-    digitalWrite(GREEN_LED, LOW);  // turn off the green led for this function
-    digitalWrite(YELLOW_LED, LOW);  // turn off the yellow led for this function
-
-    // front wall found need to turn and follow the wall
-  } else if (bitRead(flag, obFront) && !bitRead(flag, obLeft) && !bitRead(flag, obRight)) {
-    digitalWrite(RED_LED, HIGH);    // turn on the red led for this function
-    digitalWrite(GREEN_LED, HIGH);  // turn on the green led for this function
-    reverse(eighth_rotation);       //back up
-    delay(200);
-    spin(half_rotation, 1);         //turn right
-    digitalWrite(RED_LED, LOW);     // turn off the red led for this function
-    digitalWrite(GREEN_LED, LOW);   // turn off the green led for this function
-  } else  if (bitRead(state, wander)) { // wander, no walls found
-    digitalWrite(GREEN_LED, HIGH);  // turn on the green led for this function
-    rightState = FALSE;
-    leftState = FALSE;
-    randomWander();
-    digitalWrite(GREEN_LED, LOW);  // turn off the green led for this function
-  } else if(!bitRead(state, fright) && rightState == TRUE) {   // try and turn to find the wall, outside corner
-    counter++;    // increase the number of attempts to find wall
-    delay(200);
-    spin(half_rotation+50,1);   // spin right but a little bit extra (50) to account for error in testing
-    delay(200);
-    forward(one_rotation);
-    forward(half_rotation);
-    delay(200);
-  } else if(!bitRead(state, fleft) && leftState == TRUE) { // try and turn to find the wall, outside corner
-    counter++;    // increase the number of attempts to find wall
-    delay(200);
-    spin(half_rotation+50,0); // spin left but a little bit extra (50) to account for error in testing
-    delay(200);
-    forward(one_rotation);
-    forward(half_rotation);
-    delay(200);
-  }
 }
 
 /*
