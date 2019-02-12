@@ -1,11 +1,7 @@
 /*Moravec-WallFollowing.ino
   Author: Devon Adair and Hunter LaMantia
   Date: 1/16/19
-
-
-
   All other functions were given and unmodifed.
-
   Layer0 - our IR sensors recieving data and determinine if there is something there or not. It also
            involves avoid obstacle which needs to happen when following a wall or wandering.
   Layer1 - Follow Wall which is done with bang-bang or P that we created. This is when this is just one
@@ -20,7 +16,6 @@
   Right Stepper Direction Pin 53
   Left Stepper Step       Pin 44
   Left Stepper Direction  Pin 49
-
   Front IR    A8
   Back IR     A9
   Right IR    A10
@@ -204,7 +199,7 @@ int topo_check = 1; // counts current state if topological tracking is active
 #define SNW   B1101
 #define SWE   B1110
 #define NSWE  B1111
-byte tile;
+volatile byte tile;
 
 // maps for the little robot
 //volatile byte Tmap[4][4] = {{NW, SNW, N, NSWE},
@@ -228,10 +223,15 @@ volatile byte LocalMap[4][4] = {{0, 0, 0, 0},
                                 {0, 0, 0, 0},
                                 {0, 0, 0, 0},
                                 {0, 0, 0, 0}};
-volatile byte Tmap[4][4] = {{0, 0, 0, 0},
-                            {0, 0, 0, 0},
-                            {0, 0, 0, 0},
-                            {0, 0, 0, 0}};
+volatile byte Tmap[4][4] = {{NSWE, NSWE, NSWE, NSWE},
+                            {NSWE, NSWE, NSWE, NSWE},
+                            {NSWE, NSWE, NSWE, NSWE},
+                            {NSWE, NSWE, NSWE, NSWE}};
+
+//volatile byte Tmap[4][4] = {{0, 0, 0, 0},
+//                                {0, 0, 0, 0},
+//                                {0, 0, 0, 0},
+//                                {0, 0, 0, 0}};
 int localStep = 0;
                                                         
 volatile byte Omap[9][9] = {{0, 0, 0, 0, 0, 0, 0, 0, 0},
@@ -272,6 +272,7 @@ uint8_t seperator[9] = {'=','=','=','=','=','=','=','='};
 int sendRowIndex = 0;
 int eastCounter = 0;
 int northCounter = 0;
+int southCounter = 3;
 bool foundTile = false;
 
 int i, index;
@@ -355,11 +356,11 @@ void ManualMapping() {
     if(data[0] == 8) {
       Serial.println("forward");
       forward2(FORWARD);
-      northCounter++;
+      southCounter--;
     } else if(data[0] == 2) {
       Serial.println("backward");
       forward2(BACKWARD);
-      northCounter--;
+      southCounter++;
     } else if(data[0] == 4) {
       Serial.println("left");
       spin2(LEFT);
@@ -373,7 +374,16 @@ void ManualMapping() {
       spin2(LEFT);
       eastCounter++;
     } else if(data[0] == 5) {
-      updateMap(tile, northCounter, eastCounter);
+      updateMap(tile, southCounter, eastCounter);
+    } else if(data[0] == 1) {
+      printArray();
+    } else if(data[0] == 3) {
+      CalcWavefront(southCounter, eastCounter, goalRow, goalCol);
+      printArray();
+//      Serial.println(directions);
+      while(1) { 
+        topo(directions);
+      }
     }
   }
 }
@@ -407,6 +417,7 @@ void ManualLocalize() {
       eastCounter++;
     } else if(data[0] == 5) {
       localize(tile);
+//      printArray();
     } else if(data[0] == 1) {
       while(1) { 
         topo(directions);
@@ -529,9 +540,16 @@ void topo(char *instr) {
 // MAPPING SECTION
 ///////////////////////////////////////////////////////////
 void updateMap(byte tile, int r, int c) {
-//  Tmap[r][c] = tile;
-//  makeOmapFromTmap();
-//  printArray();
+  Serial.print("Row: ");
+  Serial.print(r);
+  Serial.print(" Col: ");
+  Serial.print(c);
+  Serial.println();
+  Serial.print("Tile: ");
+  Serial.print(tile);
+  Serial.println();
+  Tmap[r][c] = tile;
+  makeOmapFromTmap();
 }
 
 
@@ -639,14 +657,12 @@ void localize(byte tile){
     When the omap is populated and does wavefront propogation on it. This 
     creates a path to the goal from any square on the map. Once that is calculated
     it plans the path and sets the directions[] to E, W, N, S directions.
-
     The directions[] is filled with:
     S - for start
     T - for Terminate
     F - for Forward for the T junctions
     L - for Left
     R - for Right
-
     All the directions are relative to the robot and not the grid. This is why 
     StartingDirection variable is important to know.
   
@@ -655,7 +671,6 @@ void localize(byte tile){
     StartCol - starting column for the robot
     GoalRow - the row that the goal is in
     GoalCol - the column that the goal is in
-
     The coordinates should be given in terms of a 4x4 0 indexed.
   
   Return: nothing
@@ -874,7 +889,12 @@ void CalcWavefront(int StartRow, int StartCol, int GoalRow, int GoalCol) {
 
 void makeOmapFromTmap() {
   int Trow, Tcol, Orow, Ocol;
-  
+
+  for (Orow = 0; Orow < 9; Orow++) {
+    for(Ocol = 0; Ocol < 9; Ocol++) {
+      Omap[Orow][Ocol] = 0;
+    }
+  }
   // Make the o map based on the t map to add 99's
   for(Trow = 0; Trow < 4; Trow++) {  // rows
     for(Tcol = 0; Tcol < 4; Tcol++) {  // columns
@@ -912,6 +932,9 @@ void makeOmapFromTmap() {
 void printArray() {
   int col, row, sendPos;
   sendPos = 0;
+  Timer1.stop();
+  delay(5);
+  radio.stopListening(); 
   Serial.println("=============================================");
   for(row = 0; row < 9; row++){
     Serial.print("[");
@@ -926,17 +949,18 @@ void printArray() {
       Serial.print(", ");
     }
     Serial.println("]"); 
+//    Serial.println(sizeof(sendRow));
     delay(5);
     radio.stopListening(); 
     radio.write(sendRow, sizeof(sendRow));
   }
   Serial.println("=============================================");
+  Timer1.start();
 }
 
 /*
   Description: 
     Calls the sensors update function to update error and states based on the errors.
-
   Input: nothing
   
   Return: nothing
@@ -955,7 +979,6 @@ void updateSensors() {
   Description: 
     Update the sensor data from the IR. Polling front, left, right sensors.
     Modified from original to use inches instead of raw values
-
   Input: nothing
   
   Return: nothing
@@ -1095,7 +1118,6 @@ void updateError() {
 /*
   Description: 
     Given to us and used to see which state we need to bein
-
   Input: nothing
   
   Return: nothing
@@ -1138,7 +1160,6 @@ void updateState() {
 /*
   Description: 
     Used to move forward a predefined distance in a given direction
-
   Input:
     dir - direction to move
   
@@ -1162,7 +1183,6 @@ void forward2(int dir) {
 /*
   Description: 
     Used to spin a predefined amount in a given direction
-
   Input:
     dir - direction to spin
   
@@ -1170,17 +1190,18 @@ void forward2(int dir) {
 */
 void spin2(int dir) {
   long positions[2];                                    // Array of desired stepper positions
-  int correction = 490;
+  int rightCorrection = 480;
+  int leftCorrection = 470;
   stepperRight.setCurrentPosition(0);                   //reset right motor to position 0
   stepperLeft.setCurrentPosition(0);                    //reset left motor to position 0
   if (dir > 0) {//spin right
-    positions[0] = stepperRight.currentPosition() - correction; //right motor absolute position
-    positions[1] = stepperLeft.currentPosition() + correction; //left motor absolute position
+    positions[0] = stepperRight.currentPosition() - rightCorrection; //right motor absolute position
+    positions[1] = stepperLeft.currentPosition() + rightCorrection; //left motor absolute position
   }
   else//spin left
   {
-    positions[0] = stepperRight.currentPosition() + correction; //right motor absolute position
-    positions[1] = stepperLeft.currentPosition() - correction;  //left motor absolute position
+    positions[0] = stepperRight.currentPosition() + leftCorrection; //right motor absolute position
+    positions[1] = stepperLeft.currentPosition() - leftCorrection;  //left motor absolute position
   }
   stepperRight.move(positions[0]);    //move right motor to position
   stepperLeft.move(positions[1]);     //move left motor to position
@@ -1193,7 +1214,6 @@ void spin2(int dir) {
   Description: 
     Given to us and is used to move forward a given amount in terms of rotations that
     are predefined.
-
   Input:
     rot - amount of ticks for the motor. Predefined values above
   
@@ -1217,7 +1237,6 @@ void forward(int rot) {
   Description: 
     Given to us and is used to move backward a given amount in terms of rotations that
     are predefined.
-
   Input:
     rot - amount of ticks for the motor. Predefined values above
   
@@ -1241,7 +1260,6 @@ void reverse(int rot) {
   Description: 
     Given to us and is used to pivot a given amount in terms of rotations that
     are predefined.
-
   Input:
     rot - amount of ticks for the motor. Predefined values above
     dir - 0 is left, 1 or more is right
@@ -1272,7 +1290,6 @@ void pivot(int rot, int dir) {
   Description: 
     Given to us and is used to spin a given amount in terms of rotations that
     are predefined.
-
   Input:
     rot - amount of ticks for the motor. Predefined values above
     dir - 0 is left, 1 or more is right
@@ -1302,7 +1319,6 @@ void spin(int rot, int dir) {
 /*
   Description: 
     moves random distances at random speeds
-
   Input: nothing
   
   Return: nothing
@@ -1348,7 +1364,6 @@ void randomWander() {
 /*
   Description: 
     Stops both motors from spining
-
   Input: nothing
   
   Return: nothing
@@ -1362,7 +1377,6 @@ void stop() {
   Description: 
     spins the motors until the robot doesn't have any more ticks. It was modified to 
     stop the timer from interrupting to allow it to actually move as far as we tell it.
-
   Input: nothing
   
   Return: nothing

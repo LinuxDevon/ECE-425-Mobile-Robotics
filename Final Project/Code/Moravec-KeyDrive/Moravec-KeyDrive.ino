@@ -77,7 +77,7 @@ volatile byte state = 0;
 #define movingL   6   //robot left wheel moving
 #define movingR   7   //robot right wheel moving
 
-const uint64_t pipes[2] = {0xE8E8F0F0E1LL, 0xE8E8F0F0A1LL}; //define the radio transmit pipe (5 Byte configurable)
+const uint64_t pipes[2] = {0xE8E8F0F0E1LL, 0xE8E8F0E07DLL}; //define the radio transmit pipe (5 Byte configurable)
 RF24 radio(CE_PIN, CSN_PIN);          //create radio object
 uint8_t data[1];                      //variable to hold transmit data
 uint8_t sendData[1];
