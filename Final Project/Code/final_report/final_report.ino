@@ -215,18 +215,18 @@ volatile byte tile;
 //                            {W, NS, NS, E},
 //                            {WE, NSWE, NSWE, WE},
 //                            {SWE, NSWE, NSWE, SWE}};
-volatile byte Tmap[4][4] = {{NWE, NWE, NWE, NWE},       // topological grid
-                            {WE, W, E, WE},
-                            {W, E, W, E},
-                            {SWE, NSWE, NSWE, SWE}};
+//volatile byte Tmap[4][4] = {{NWE, NWE, NWE, NWE},       // topological grid
+//                            {WE, W, E, WE},
+//                            {W, E, W, E},
+//                            {SWE, NSWE, NSWE, SWE}};
 volatile byte LocalMap[4][4] = {{0, 0, 0, 0},
                                 {0, 0, 0, 0},
                                 {0, 0, 0, 0},
                                 {0, 0, 0, 0}};
-//volatile byte Tmap[4][4] = {{NSWE, NSWE, NSWE, NSWE},
-//                            {NSWE, NSWE, NSWE, NSWE},
-//                            {NSWE, NSWE, NSWE, NSWE},
-//                            {NSWE, NSWE, NSWE, NSWE}};
+volatile byte Tmap[4][4] = {{NSWE, NSWE, NSWE, NSWE},
+                            {NSWE, NSWE, NSWE, NSWE},
+                            {NSWE, NSWE, NSWE, NSWE},
+                            {NSWE, NSWE, NSWE, NSWE}};
 
 //volatile byte Tmap[4][4] = {{0, 0, 0, 0},
 //                                {0, 0, 0, 0},
@@ -274,6 +274,7 @@ int eastCounter = 0;
 int northCounter = 0;
 int southCounter = 3;
 bool foundTile = false;
+bool canMoveWest=false, canMoveEast=false, canMoveNorth=false, canMoveSouth=false;
 
 int i, index;
 bool wentBack;
@@ -323,8 +324,8 @@ void setup()
 
   writeArray = false;
   
-  makeOmapFromTmap();
-  printArray();       // show the inital array
+//  makeOmapFromTmap();
+//  printArray();       // show the inital array
 //  CalcWavefront(3,0,2,1);
 //  CalcWavefront(0,0,3,1);
 //  CalcWavefront(0,1,2,1);
@@ -342,10 +343,98 @@ void setup()
 void loop()
 {
 //  topo(directions);
-//  topo("SLLLLT");
+//  topo("ST");
 //  ManualLocalize();
 //  AutoLocalize();
-  ManualMapping();
+//  ManualMapping();
+  AutoMapping();
+}
+
+void AutoMapping() {
+  bool done;
+  // take a snapshot of tile
+  if(LocalMap[southCounter][eastCounter] == 0){ // haven't visited this square
+    updateMap(tile, southCounter, eastCounter);
+    delay(500);
+//    makeOmapFromTmap();
+//    printArray();
+  }
+
+  done = checkDone();
+  if(done) {
+//    Serial.println("DONE");
+    CalcWavefront(southCounter, eastCounter, goalRow, goalCol);
+    makeOmapFromTmap();
+    printArray();
+    while(1) { 
+      topo(directions);
+    }
+  }
+
+  // verify it isn't going to move in a tile it is already in
+  if(eastCounter + 1 < 4) {
+    if(LocalMap[southCounter][eastCounter+1] != 1) {
+      canMoveEast = true; 
+    } else {
+      canMoveEast = false;
+    }
+  } else {
+    canMoveEast = false;
+  }
+  if(southCounter - 1 >= 0) {
+    if(LocalMap[southCounter-1][eastCounter] != 1) {
+      canMoveNorth = true; 
+    } else {
+      canMoveNorth = false;
+    }
+  } else {
+    canMoveNorth = false;
+  }
+  if(southCounter + 1 < 4) {
+    if(LocalMap[southCounter+1][eastCounter] != 1) {
+      canMoveSouth = true; 
+    } else {
+      canMoveSouth = false;
+    }
+  } else {
+    canMoveSouth = false;
+  }
+  if(eastCounter - 1 >= 0) {
+    if(LocalMap[southCounter][eastCounter-1] != 1) {
+      canMoveWest = true; 
+    } else {
+      canMoveWest = false;
+    }
+  } else {
+    canMoveWest = false;
+  }
+
+  Serial.println(canMoveEast);
+  Serial.println(canMoveWest);
+  Serial.println(canMoveNorth);
+  Serial.println(canMoveSouth);
+  
+  if(!bitRead(flag,obRight) && canMoveEast) {
+    Serial.println("right");
+    spin2(RIGHT);
+    forward2(FORWARD);
+    spin2(LEFT);
+    eastCounter++;
+  } else if(!bitRead(flag,obRear) && canMoveSouth) { 
+    Serial.println("backward");
+    forward2(BACKWARD);
+    southCounter++;
+  }  else if(!bitRead(flag,obLeft) && canMoveWest) {
+    Serial.println("left");
+    spin2(LEFT);
+    forward2(FORWARD);
+    spin2(RIGHT);
+    eastCounter--;
+  } else {  // default to moving south when can't move anywhere else
+    Serial.println("forward");
+    forward2(FORWARD);
+    southCounter--;
+  }
 }
 
 void ManualMapping() {
@@ -376,6 +465,7 @@ void ManualMapping() {
     } else if(data[0] == 5) {
       updateMap(tile, southCounter, eastCounter);
     } else if(data[0] == 1) {
+      makeOmapFromTmap();
       printArray();
     } else if(data[0] == 3) {
       CalcWavefront(southCounter, eastCounter, goalRow, goalCol);
@@ -477,11 +567,12 @@ void AutoLocalize() {
 
 void topo(char *instr) {
   char topo_current = instr[topo_check]; // tracks current instruction
-//  Serial.print(instr[0]);
-//  Serial.print(instr[1]);
-//  Serial.print(instr[2]);
-//  Serial.print(instr[3]);
-//  Serial.println(instr[4]):
+  
+  Serial.print(instr[0]);
+  Serial.print(instr[1]);
+  Serial.print(instr[2]);
+  Serial.print(instr[3]);
+  Serial.println(instr[4]):
 
   if (bitRead(state, center)) { // initiates wall following
     if (((ri_cerror == 0) && (li_cerror == 0)) || (derror == 0)) { // centered in the hallway
@@ -528,7 +619,8 @@ void topo(char *instr) {
     }
     // terminates program at after doing all turns
 //    if(topo_current == 'T' && bitRead(flag,obFront)) {
-    if(topo_current == 'T') {
+    if(topo_current == 'T' || bitRead(flag,obFront)) {
+//    if(topo_current == 'T') {
 //      forward(one_rotation);
 //      forward(half_rotation);
       exit(0);
@@ -549,9 +641,43 @@ void updateMap(byte tile, int r, int c) {
   Serial.print(tile);
   Serial.println();
   Tmap[r][c] = tile;
-  makeOmapFromTmap();
+  LocalMap[r][c] = 1; // tell that we have visited it
+//  makeOmapFromTmap();
 }
 
+bool checkDone() {
+  int row, col;
+
+  // looping over the array to see if there are wall miss matches
+  // example being one square equals 15 and another is 10 but the 15 shouldn't have a north wall
+  for(row = 0; row < 4; row++) {
+    for(col = 0; col < 4; col++) {
+      if(Tmap[row][col] == NSWE) {
+        if(row + 1 < 4) {
+          if((Tmap[row+1][col] & N) == 0) {
+            return false;
+          }
+        }
+        if(row - 1 >= 0) {
+          if((Tmap[row-1][col] & S) == 0) {
+            return false;
+          }
+        }
+        if(col + 1 < 4) {
+          if((Tmap[row][col+1] & W) == 0) {
+            return false;
+          }
+        }
+        if(col - 1 >= 0) {
+          if((Tmap[row][col-1] & E) == 0) {
+            return false;
+          }
+        }
+      }
+    }      
+  }
+  return true; // no bad walls found
+}
 
 ///////////////////////////////////////////////////////////
 // LOCALIZATION SECTION
@@ -932,7 +1058,7 @@ void makeOmapFromTmap() {
 void printArray() {
   int col, row, sendPos;
   sendPos = 0;
-  Timer1.stop();
+//  Timer1.stop();
   delay(5);
   radio.stopListening(); 
   Serial.println("=============================================");
@@ -958,7 +1084,7 @@ void printArray() {
 //    }
   }
   Serial.println("=============================================");
-  Timer1.start();
+//  Timer1.start();
 }
 
 /*
