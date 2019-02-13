@@ -215,18 +215,18 @@ volatile byte tile;
 //                            {W, NS, NS, E},
 //                            {WE, NSWE, NSWE, WE},
 //                            {SWE, NSWE, NSWE, SWE}};
-//volatile byte Tmap[4][4] = {{NWE, NWE, NWE, NWE},       // topological grid
-//                            {WE, W, E, WE},
-//                            {W, E, W, E},
-//                            {SWE, NSWE, NSWE, SWE}};
+volatile byte Tmap[4][4] = {{NWE, NWE, NWE, NWE},       // topological grid
+                            {WE, W, E, WE},
+                            {W, E, W, E},
+                            {SWE, NSWE, NSWE, SWE}};
 volatile byte LocalMap[4][4] = {{0, 0, 0, 0},
                                 {0, 0, 0, 0},
                                 {0, 0, 0, 0},
                                 {0, 0, 0, 0}};
-volatile byte Tmap[4][4] = {{NSWE, NSWE, NSWE, NSWE},
-                            {NSWE, NSWE, NSWE, NSWE},
-                            {NSWE, NSWE, NSWE, NSWE},
-                            {NSWE, NSWE, NSWE, NSWE}};
+//volatile byte Tmap[4][4] = {{NSWE, NSWE, NSWE, NSWE},
+//                            {NSWE, NSWE, NSWE, NSWE},
+//                            {NSWE, NSWE, NSWE, NSWE},
+//                            {NSWE, NSWE, NSWE, NSWE}};
 
 //volatile byte Tmap[4][4] = {{0, 0, 0, 0},
 //                                {0, 0, 0, 0},
@@ -323,8 +323,8 @@ void setup()
 
   writeArray = false;
   
-//  makeOmapFromTmap();
-//  printArray();       // show the inital array
+  makeOmapFromTmap();
+  printArray();       // show the inital array
 //  CalcWavefront(3,0,2,1);
 //  CalcWavefront(0,0,3,1);
 //  CalcWavefront(0,1,2,1);
@@ -949,10 +949,13 @@ void printArray() {
       Serial.print(", ");
     }
     Serial.println("]"); 
-//    Serial.println(sizeof(sendRow));
-    delay(5);
-    radio.stopListening(); 
-    radio.write(sendRow, sizeof(sendRow));
+//    delay(5);
+//    radio.startListening();
+//    if ( radio.available()) {
+      delay(5);
+      radio.stopListening(); 
+      radio.write(sendRow, sizeof(sendRow));
+//    }
   }
   Serial.println("=============================================");
   Timer1.start();
