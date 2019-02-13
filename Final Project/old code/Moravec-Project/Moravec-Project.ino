@@ -1,4 +1,4 @@
-/*Moravec-WallFollowing.ino
+/*Moravec-Project.ino
   Author: Devon Adair and Hunter LaMantia
   Date: 1/16/19
   All other functions were given and unmodifed.

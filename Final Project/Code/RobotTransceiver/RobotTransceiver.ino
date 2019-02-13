@@ -1,4 +1,4 @@
-/*RobotTransmitter.ino
+/*RobotTransceiver.ino
   Authors: Carlotta Berry, Ricky Rung
   modified: 11/23/16
   This program will set up the laptop to use a nRF24L01 wireless transceiver to
