@@ -233,6 +233,16 @@ volatile byte Tmap[4][4] = {{NSWE, NSWE, NSWE, NSWE},
 //                                {0, 0, 0, 0},
 //                                {0, 0, 0, 0}};
 int localStep = 0;
+
+//volatile byte Omap[9][9] =  {{99, 99, 99, 99, 99, 99, 99, 99, 99},
+//                             {99, 0, 0, 0, 0, 0, 0, 0, 99},
+//                             {99, 0, 99, 99, 99, 99, 99, 0, 99},
+//                             {99, 0, 99, 99, 99, 99, 99, 0, 99},
+//                             {99, 0, 99, 99, 99, 99, 99, 0, 99},
+//                             {99, 0, 0, 0, 0, 0, 0, 0, 99},
+//                             {99, 0, 99, 99, 99, 99, 99, 0, 99},
+//                             {99, 0, 99, 99, 99, 99, 99, 0, 99},
+//                             {99, 99, 99, 99, 99, 99, 99, 99, 99}};
                                                         
 volatile byte Omap[9][9] = {{0, 0, 0, 0, 0, 0, 0, 0, 0},
                              {0, 0, 0, 0, 0, 0, 0, 0, 0},
@@ -342,11 +352,16 @@ void setup()
  */
 void loop()
 {
-//  topo(directions);
-//  topo("ST");
+//  topo("SFT");
 //  ManualLocalize();
 //  AutoLocalize();
 //  ManualMapping();
+//  int runOnce = 0;
+//  if(runOnce == 0) {
+//    CalcWavefront(1,0,3,0);
+//    runOnce++;
+//  }
+//  topo(directions);
   AutoMapping();
 }
 
@@ -363,8 +378,8 @@ void AutoMapping() {
   done = checkDone();
   if(done) {
 //    Serial.println("DONE");
-    CalcWavefront(southCounter, eastCounter, goalRow, goalCol);
     makeOmapFromTmap();
+    CalcWavefront(southCounter, eastCounter, goalRow, goalCol);
     printArray();
     while(1) { 
       topo(directions);
@@ -430,10 +445,32 @@ void AutoMapping() {
     forward2(FORWARD);
     spin2(RIGHT);
     eastCounter--;
-  } else {  // default to moving south when can't move anywhere else
+  } else if(!bitRead(flag,obFront) && canMoveNorth) {  // default to moving south when can't move anywhere else
     Serial.println("forward");
     forward2(FORWARD);
     southCounter--;
+  } else {
+     if(!bitRead(flag,obRight)) {
+      Serial.println("right");
+      spin2(RIGHT);
+      forward2(FORWARD);
+      spin2(LEFT);
+      eastCounter++;
+    } else if(!bitRead(flag,obRear)) { 
+      Serial.println("backward");
+      forward2(BACKWARD);
+      southCounter++;
+    }  else if(!bitRead(flag,obLeft)) {
+      Serial.println("left");
+      spin2(LEFT);
+      forward2(FORWARD);
+      spin2(RIGHT);
+      eastCounter--;
+    } else if(!bitRead(flag,obFront)) {  // default to moving south when can't move anywhere else
+      Serial.println("forward");
+      forward2(FORWARD);
+      southCounter--;
+    }
   }
 }
 
@@ -568,11 +605,12 @@ void AutoLocalize() {
 void topo(char *instr) {
   char topo_current = instr[topo_check]; // tracks current instruction
   
-  Serial.print(instr[0]);
-  Serial.print(instr[1]);
-  Serial.print(instr[2]);
-  Serial.print(instr[3]);
-  Serial.println(instr[4]);
+//  Serial.print(instr[0]);
+//  Serial.print(instr[1]);
+//  Serial.print(instr[2]);
+//  Serial.print(instr[3]);
+//  Serial.println(instr[4]);
+  Serial.println(topo_current);
 
   if (bitRead(state, center)) { // initiates wall following
     if (((ri_cerror == 0) && (li_cerror == 0)) || (derror == 0)) { // centered in the hallway
@@ -619,9 +657,8 @@ void topo(char *instr) {
     }
   }
   // terminates program at after doing all turns
-  if(topo_current == 'T') {
-//    exit(0);
-    while(1);
+  if(topo_current == 'T' && bitRead(flag, obFront)) {
+    exit(0);
   } 
 }
 
