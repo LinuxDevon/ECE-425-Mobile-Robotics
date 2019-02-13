@@ -45,8 +45,9 @@ const uint64_t pipes[2] = {0xE8E8F0F0E1LL, 0xE8E8F0E07DLL}; //define the radio t
 RF24 radio(CE_PIN, CSN_PIN);          //create radio object
 uint8_t data[1];                      //variable to hold transmit data
 
-int i;
+int i, j;
 int rowCount = 0;
+bool waitForRow = false;
 
 void setup() {
   Serial.begin(9600);//start serial communication
@@ -63,15 +64,33 @@ uint8_t recieveInfo[9];
 void loop() {
   //use serial monitor to send 0 and 1 to blink LED on digital pin 13 on robot microcontroller
   delay(5);
+//  if(data[0] == 0) {
+//    delay(1000);
+//  }
   radio.stopListening();
   if (Serial.available() > 0) {
     data[0] = Serial.parseInt();
     Serial.println(data[0]);
     radio.write(data, sizeof(data));
   }
-
+//  Serial.print(data[0]);
   delay(5);
   radio.startListening();
+  if(data[0] == 1) {
+    for( i = 0; i < 9; i++) {
+      while(!radio.available());
+      radio.read(&recieveInfo, sizeof(recieveInfo));
+      for (j = 0; j < 9; j++) {
+        if(recieveInfo[i] < 10) {
+           Serial.print(0);
+        }
+        Serial.print(recieveInfo[i]);
+        Serial.print(", ");
+      }
+      Serial.println();
+    }
+    
+  }
   if (radio.available()) {
     radio.read(&recieveInfo, sizeof(recieveInfo));
     for(i = 0; i < 9; i++) {
