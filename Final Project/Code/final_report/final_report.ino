@@ -572,7 +572,7 @@ void topo(char *instr) {
   Serial.print(instr[1]);
   Serial.print(instr[2]);
   Serial.print(instr[3]);
-  Serial.println(instr[4]):
+  Serial.println(instr[4]);
 
   if (bitRead(state, center)) { // initiates wall following
     if (((ri_cerror == 0) && (li_cerror == 0)) || (derror == 0)) { // centered in the hallway
@@ -617,15 +617,12 @@ void topo(char *instr) {
       topo_check++;
       topo_current = instr[topo_check];
     }
-    // terminates program at after doing all turns
-//    if(topo_current == 'T' && bitRead(flag,obFront)) {
-    if(topo_current == 'T' || bitRead(flag,obFront)) {
-//    if(topo_current == 'T') {
-//      forward(one_rotation);
-//      forward(half_rotation);
-      exit(0);
-    }  
   }
+  // terminates program at after doing all turns
+  if(topo_current == 'T') {
+//    exit(0);
+    while(1);
+  } 
 }
 
 ///////////////////////////////////////////////////////////
