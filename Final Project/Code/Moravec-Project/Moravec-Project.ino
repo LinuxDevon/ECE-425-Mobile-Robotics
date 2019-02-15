@@ -1,15 +1,65 @@
 /*Moravec-Project.ino
   Author: Devon Adair and Hunter LaMantia
-  Date: 1/16/19
-  All other functions were given and unmodifed.
-  Layer0 - our IR sensors recieving data and determinine if there is something there or not. It also
-           involves avoid obstacle which needs to happen when following a wall or wandering.
-  Layer1 - Follow Wall which is done with bang-bang or P that we created. This is when this is just one
-           wall.
-  Layer2 - Follow Center is when it detects a wall on either side which. This is done with minor adjustments
-           that are proportional to each wall.
-  Layer3 - This layer is random wander where if we loose a wall move around to find it or another wall.  
+  Date: 2/15/19
+
+  This is our final project code for our robot. This project invovled using hallway following and
+  odemetry to follow maps. The project was broken up into multiple stages. As for our inputs we set
+  the map manually first which is called Tmap(4x4). This map gets made into a odeometric map (9x9)
+  filled with 99's and 0's to represent walls and open tiles. The map is made in the function 
+  makeOmapFromTmap().  
+
+  Stage 1:
+    This invovled getting path following. We made the function pathFollow() for this. It uses a 
+    string of characters to tell which way to turn and which T junctions to skip.
+
+  Stage 2:
+    This part was path planning that took a Tmap as an input and a goal. It ran the wavefront 
+    algorithm on the 9x9 Omap to plan a path from start to goal. The map added numbers to the step
+    on the tile to represent steps down to the goal from any spot on the map.
+
+  Stage 3:
+    Wireless communication was the next part and this was done in the manual functions that we created.
+    It would listen for commands from another arduino on another computer. It would send the array back
+    in the function called printArray().
+
+  Stage 4:
+    The next part that we did was do localization. This involved using the wireless communication to 
+    drive the robot around and have it find itself on the map. This was done by calling the manualLocalize().
+    We then made the autoLocalize() function that had a set behavior to find tiles it hasn't visited
+    to determine where it is in the map. Once it finds itself it returns a map marked with where it started
+    and then a map where it is currently.
+
+  Stage 5:
+    The fifth and final stage was mapping. This means that we didn't give it an input map and had to 
+    create its own. We did give it starting coordinates to tell it where it started. From there it 
+    removes and fills in correct tiles into a 4x4 matrix filled with all 15's
+
+  FUNCTIONS MADE THIS PROJECT:
+    void pathFollow(char *instr) - takes the string of directions and follows the directions to make the turns
+    void updateMap(byte tile, int r, int c) - takes the row, column, and tile to update the correct tile in the tmap
+    bool checkDone() - used to check if the mapping has finished or not
+    void AutoMapping() - automatically maps a tmap and prints out the path after mapping and goes to the goal
+    void ManualMapping()  - manual controls the movement tile by tile and then calculate the path and go to the goal
+    void localize(byte tile)  - figures out where the bot is in the map after each movement to the next tile and prints the array
+    void AutoLocalize() - move around automatically and takes readings to figure out where it is then prints out that info then goes to the goal
+    void ManualLocalize() - controlled via keyboard on another computer wirelessly. Moved around and takes readings untill it finds the postion then prints the map
+    void CalcWavefront(int StartRow, int StartCol, int GoalRow, int GoalCol) - calculates the steps to the goal from any given position on the map then creates the direction string used for path following
+    void makeOmapFromTmap() - takes the global tmap and make a 9x9 odeometric map filled with 99's and zeros
+    void printArray() - prints the array to the serial monitor and wirelessly. this is the 9x9 odeometric map
   
+  All other functions were given and unmodifed.
+  
+  Layer0 - our IR sensors recieving data and determinine if there is something there or not.
+  Layer1 - Hallway follow is the next layer and move individual tile functions. Part of it is odometry
+           and the other is using our old wall follow code. (Path follow)
+  Layer2 - Path planning gives the directions to the Layer 1 to follow when it finds the path from start
+           to finish.
+  Layer3 - Invovles using wireless communication to send commands and recieve a map wirelessly.
+  Layer4 - Localization is when it finds itself on the map. Mapping is given a starting coordinate and fills in a blank map.
+           It is done both automatically and manually.
+           It sends back the map using the Layer 2 wirelees communication. It also uses the path planning to go
+           to the goal when it is done. 
+
   Hardware Connections:
   Stepper Enable          Pin 48
   Right Stepper Step      Pin 46
@@ -20,9 +70,6 @@
   Back IR     A9
   Right IR    A10
   Left IR     A11
-  Left Sonar  A12
-  Right Sonar A13
-  Button      A15
 */
 
 // -- INCLUDES --//
@@ -169,9 +216,6 @@ int right_derror; //difference between right front and back sensor, this may be 
 
 int derror;       //difference between left and right error to center robot in the hallway
 
-int rightState;   // detects if the right wall was ever found
-int leftState;    // dtects if the left wall was ever found
-
 int counter = 3;  // count how many times we try to find the wall. 3 means we are in random wander to start
 
 int topo_check = 1; // counts current state if topological tracking is active
@@ -199,9 +243,10 @@ int topo_check = 1; // counts current state if topological tracking is active
 #define SNW   B1101
 #define SWE   B1110
 #define NSWE  B1111
-volatile byte tile;
+volatile byte tile;   // current tile that is read by the ir sensors
 
 // maps for the little robot
+// kept a copy to quickly change maps when demonstrating
 //volatile byte Tmap[4][4] = {{NW, SNW, N, NSWE},
 //                            {W, NS, S, NE},
 //                            {WE, SNW, NS, E},
@@ -210,7 +255,6 @@ volatile byte tile;
 //                            {W, NS, NS, E},
 //                            {WE, NSWE, NSWE, WE},
 //                            {SWE, SNW, NS, SE}};
-
 //volatile byte Tmap[4][4] = {{NWE, NSWE, NSWE, NWE},   // occupancy grid
 //                            {W, NS, NS, E},
 //                            {WE, NSWE, NSWE, WE},
@@ -219,31 +263,20 @@ volatile byte tile;
 //                            {WE, W, E, WE},
 //                            {W, E, W, E},
 //                            {SWE, NSWE, NSWE, SWE}};
-volatile byte LocalMap[4][4] = {{0, 0, 0, 0},
-                                {0, 0, 0, 0},
+
+volatile byte LocalMap[4][4] = {{0, 0, 0, 0},   // used to determine squares visited in localization and
+                                {0, 0, 0, 0},   // mapping
                                 {0, 0, 0, 0},
                                 {0, 0, 0, 0}};
+
+// map that is used for mapping
+// keeping in to quickly change maps being used
 volatile byte Tmap[4][4] = {{NSWE, NSWE, NSWE, NSWE},
                             {NSWE, NSWE, NSWE, NSWE},
                             {NSWE, NSWE, NSWE, NSWE},
                             {NSWE, NSWE, NSWE, NSWE}};
 
-//volatile byte Tmap[4][4] = {{0, 0, 0, 0},
-//                                {0, 0, 0, 0},
-//                                {0, 0, 0, 0},
-//                                {0, 0, 0, 0}};
-int localStep = 0;
-
-//volatile byte Omap[9][9] =  {{99, 99, 99, 99, 99, 99, 99, 99, 99},
-//                             {99, 0, 0, 0, 0, 0, 0, 0, 99},
-//                             {99, 0, 99, 99, 99, 99, 99, 0, 99},
-//                             {99, 0, 99, 99, 99, 99, 99, 0, 99},
-//                             {99, 0, 99, 99, 99, 99, 99, 0, 99},
-//                             {99, 0, 0, 0, 0, 0, 0, 0, 99},
-//                             {99, 0, 99, 99, 99, 99, 99, 0, 99},
-//                             {99, 0, 99, 99, 99, 99, 99, 0, 99},
-//                             {99, 99, 99, 99, 99, 99, 99, 99, 99}};
-                                                        
+// used to make 9x9 from 4x4 Topological map                                                      
 volatile byte Omap[9][9] = {{0, 0, 0, 0, 0, 0, 0, 0, 0},
                              {0, 0, 0, 0, 0, 0, 0, 0, 0},
                              {0, 0, 0, 0, 0, 0, 0, 0, 0},
@@ -258,11 +291,13 @@ volatile byte Omap[9][9] = {{0, 0, 0, 0, 0, 0, 0, 0, 0},
 // we calculate the path
 char directions[10];
 
+// directions defined
 #define NORTH 0
 #define SOUTH 1
 #define WEST  2
 #define EAST  3
 int startingDirection = NORTH;
+
 #define goalRow 3
 #define goalCol 0
 
@@ -272,20 +307,25 @@ int startingDirection = NORTH;
 #define LEFT 0
 #define RIGHT 1
 
+// the step number that the robot has taken when trying to localize
+int localStep = 0; 
+
+// -- WIRELESS COMMUNICATION -- //
 // Set up the wireless transceiver pins
 #define team_channel 69   //transmitter and receiver on same channel between 1 & 125
-bool writeArray;
 
 const uint64_t pipes[2] = {0xE8E8F0F0E1LL, 0xE8E8F0E07DLL}; //define the radio transmit pipe (5 Byte configurable)
-uint8_t data[1], sendData[81], sendRow[9]; // wireless array 
-uint8_t seperator[9] = {'=','=','=','=','=','=','=','='};
-int sendRowIndex = 0;
-int eastCounter = 0;
-int northCounter = 0;
-int southCounter = 3;
+uint8_t data[1], sendData[81], sendRow[9];                  // wireless arrays
+int sendRowIndex = 0;                                       // index of wireless array
+
+// booleans used to figure out which directions to move
 bool foundTile = false;
 bool canMoveWest=false, canMoveEast=false, canMoveNorth=false, canMoveSouth=false;
 
+// indexing used for manual and auto localization and mapping
+int southCounter = 0;
+int northCounter = 0;
+int eastCounter = 0;
 int i, index;
 bool wentBack;
 
@@ -332,15 +372,9 @@ void setup()
 
   delay(1500);                                //wait 1.5 seconds before robot moves
 
-  writeArray = false;
-  
+  // uncomment when runnning anything but mapping
 //  makeOmapFromTmap();
 //  printArray();       // show the inital array
-//  CalcWavefront(3,0,2,1);
-//  CalcWavefront(0,0,3,1);
-//  CalcWavefront(0,1,2,1);
-//  CalcWavefront(1,3,0,1);
-//  CalcWavefront(0,0,0,0);
 
   // start in wander state
   bitSet(flag, wander);
@@ -352,265 +386,37 @@ void setup()
  */
 void loop()
 {
-//  topo("SFT");
+//  pathFollow("SFT");
 //  ManualLocalize();
 //  AutoLocalize();
 //  ManualMapping();
-//  int runOnce = 0;
-//  if(runOnce == 0) {
-//    CalcWavefront(1,0,3,0);
-//    runOnce++;
-//  }
-//  topo(directions);
+//  pathFollow(directions);
   AutoMapping();
 }
 
-void AutoMapping() {
-  bool done;
-  // take a snapshot of tile
-  if(LocalMap[southCounter][eastCounter] == 0){ // haven't visited this square
-    updateMap(tile, southCounter, eastCounter);
-    delay(500);
-//    makeOmapFromTmap();
-//    printArray();
-  }
-
-  done = checkDone();
-  if(done) {
-//    Serial.println("DONE");
-    makeOmapFromTmap();
-    CalcWavefront(southCounter, eastCounter, goalRow, goalCol);
-    printArray();
-    while(1) { 
-      topo(directions);
-    }
-  }
-
-  // verify it isn't going to move in a tile it is already in
-  if(eastCounter + 1 < 4) {
-    if(LocalMap[southCounter][eastCounter+1] != 1) {
-      canMoveEast = true; 
-    } else {
-      canMoveEast = false;
-    }
-  } else {
-    canMoveEast = false;
-  }
-  if(southCounter - 1 >= 0) {
-    if(LocalMap[southCounter-1][eastCounter] != 1) {
-      canMoveNorth = true; 
-    } else {
-      canMoveNorth = false;
-    }
-  } else {
-    canMoveNorth = false;
-  }
-  if(southCounter + 1 < 4) {
-    if(LocalMap[southCounter+1][eastCounter] != 1) {
-      canMoveSouth = true; 
-    } else {
-      canMoveSouth = false;
-    }
-  } else {
-    canMoveSouth = false;
-  }
-  if(eastCounter - 1 >= 0) {
-    if(LocalMap[southCounter][eastCounter-1] != 1) {
-      canMoveWest = true; 
-    } else {
-      canMoveWest = false;
-    }
-  } else {
-    canMoveWest = false;
-  }
-
-  Serial.println(canMoveEast);
-  Serial.println(canMoveWest);
-  Serial.println(canMoveNorth);
-  Serial.println(canMoveSouth);
-  
-  if(!bitRead(flag,obRight) && canMoveEast) {
-    Serial.println("right");
-    spin2(RIGHT);
-    forward2(FORWARD);
-    spin2(LEFT);
-    eastCounter++;
-  } else if(!bitRead(flag,obRear) && canMoveSouth) { 
-    Serial.println("backward");
-    forward2(BACKWARD);
-    southCounter++;
-  }  else if(!bitRead(flag,obLeft) && canMoveWest) {
-    Serial.println("left");
-    spin2(LEFT);
-    forward2(FORWARD);
-    spin2(RIGHT);
-    eastCounter--;
-  } else if(!bitRead(flag,obFront) && canMoveNorth) {  // default to moving south when can't move anywhere else
-    Serial.println("forward");
-    forward2(FORWARD);
-    southCounter--;
-  } else {
-     if(!bitRead(flag,obRight)) {
-      Serial.println("right");
-      spin2(RIGHT);
-      forward2(FORWARD);
-      spin2(LEFT);
-      eastCounter++;
-    } else if(!bitRead(flag,obRear)) { 
-      Serial.println("backward");
-      forward2(BACKWARD);
-      southCounter++;
-    }  else if(!bitRead(flag,obLeft)) {
-      Serial.println("left");
-      spin2(LEFT);
-      forward2(FORWARD);
-      spin2(RIGHT);
-      eastCounter--;
-    } else if(!bitRead(flag,obFront)) {  // default to moving south when can't move anywhere else
-      Serial.println("forward");
-      forward2(FORWARD);
-      southCounter--;
-    }
-  }
-}
-
-void ManualMapping() {
-  delay(5);
-  radio.startListening();
-  while (radio.available()) {
-    radio.read(&data, sizeof(data));
-    if(data[0] == 8) {
-      Serial.println("forward");
-      forward2(FORWARD);
-      southCounter--;
-    } else if(data[0] == 2) {
-      Serial.println("backward");
-      forward2(BACKWARD);
-      southCounter++;
-    } else if(data[0] == 4) {
-      Serial.println("left");
-      spin2(LEFT);
-      forward2(FORWARD);
-      spin2(RIGHT);
-      eastCounter--;
-    } else if(data[0] == 6) {
-      Serial.println("right");
-      spin2(RIGHT);
-      forward2(FORWARD);
-      spin2(LEFT);
-      eastCounter++;
-    } else if(data[0] == 5) {
-      updateMap(tile, southCounter, eastCounter);
-    } else if(data[0] == 1) {
-      makeOmapFromTmap();
-      printArray();
-    } else if(data[0] == 3) {
-      CalcWavefront(southCounter, eastCounter, goalRow, goalCol);
-      printArray();
-//      Serial.println(directions);
-      while(1) { 
-        topo(directions);
-      }
-    }
-  }
-}
-
-void ManualLocalize() {
-  delay(5);
-  radio.startListening();
-  while (radio.available()) {
-//    Serial.println("test");
-    radio.read(&data, sizeof(data));
-//    Serial.println(data[0]);
-    if(data[0] == 8) {
-      Serial.println("forward");
-      forward2(FORWARD);
-      northCounter++;
-    } else if(data[0] == 2) {
-      Serial.println("backward");
-      forward2(BACKWARD);
-      northCounter--;
-    } else if(data[0] == 4) {
-      Serial.println("left");
-      spin2(LEFT);
-      forward2(FORWARD);
-      spin2(RIGHT);
-      eastCounter--;
-    } else if(data[0] == 6) {
-      Serial.println("right");
-      spin2(RIGHT);
-      forward2(FORWARD);
-      spin2(LEFT);
-      eastCounter++;
-    } else if(data[0] == 5) {
-      localize(tile);
-//      printArray();
-    } else if(data[0] == 1) {
-      while(1) { 
-        topo(directions);
-      }
-    }
-  }
-}
-
-void AutoLocalize() {
-  localize(tile);
-  delay(200);
-  if(foundTile == true) {
-//    Serial.println(directionss);
-    while(1) { 
-      topo(directions);
-    }
-  }
-  if(!bitRead(flag,obFront) && wentBack == false) {
-    forward2(FORWARD);
-    northCounter++;
-    wentBack = false;
-    delay(200);
-  } else if(!bitRead(flag,obLeft)) {
-    spin2(LEFT);
-    forward2(FORWARD);
-    spin2(RIGHT);
-    wentBack = false;
-    eastCounter--;
-    delay(200);
-  } else if(!bitRead(flag,obRight)) {
-    spin2(RIGHT);
-    forward2(FORWARD);
-    spin2(LEFT);
-    wentBack = false;
-    eastCounter++;
-    delay(200);
-  } else if(!bitRead(flag,obRear)) {
-    forward2(BACKWARD);
-    wentBack = true;
-    northCounter--;
-    delay(200);
-  }
-}
-
 ///////////////////////////////////////////////////////////
-// TOPOLOGICAL
+// PATH FOLLOWING
 ///////////////////////////////////////////////////////////
 /*
   Description: 
     Follows a set of instructions to follow paths. This means that it makes a specific
     sequence of turns at intersections and terminates.
+
+    S - start
+    F - forward past t junction
+    R - right turn
+    L - left turn
+    T - terminate
+
+    Example input: "SLRFT"
   
-  Input: nothing
+  Input:
+    *instr - is a character array or a String. each character is an instruction
   
   Return: nothing
 */
-
-void topo(char *instr) {
+void pathFollow(char *instr) {
   char topo_current = instr[topo_check]; // tracks current instruction
-  
-//  Serial.print(instr[0]);
-//  Serial.print(instr[1]);
-//  Serial.print(instr[2]);
-//  Serial.print(instr[3]);
-//  Serial.println(instr[4]);
-  Serial.println(topo_current);
 
   if (bitRead(state, center)) { // initiates wall following
     if (((ri_cerror == 0) && (li_cerror == 0)) || (derror == 0)) { // centered in the hallway
@@ -629,29 +435,17 @@ void topo(char *instr) {
   // turns around corners if instructions call for it
   if(ri_curr > 12 || li_curr > 12) {
     if(topo_current == 'R') {
-//      spin(quarter_rotation+50,1);
-//      forward(half_rotation);
-//      spin(quarter_rotation+15,1);
-//      forward(one_rotation);
-//      forward(half_rotation);
-      spin2(RIGHT);
-      forward2(FORWARD);
+      spinTile(RIGHT);
+      moveTile(FORWARD);
       topo_check++;
       topo_current = instr[topo_check];
     } else if(topo_current == 'L') {
-//      spin(quarter_rotation+50,0);
-//      forward(half_rotation);
-//      spin(quarter_rotation+50,0);
-//      forward(one_rotation);
-//      forward(half_rotation);
-      spin2(LEFT);
-      forward2(FORWARD);
+      spinTile(LEFT);
+      moveTile(FORWARD);
       topo_check++;
       topo_current = instr[topo_check];
     } else if(topo_current == 'F') {
-//      forward(one_rotation);
-//      forward(half_rotation);
-      forward2(FORWARD);
+      moveTile(FORWARD);
       topo_check++;
       topo_current = instr[topo_check];
     }
@@ -665,20 +459,34 @@ void topo(char *instr) {
 ///////////////////////////////////////////////////////////
 // MAPPING SECTION
 ///////////////////////////////////////////////////////////
+/*
+  Description: 
+    Takes in the current tile, row, and column and updates the Tmap filled with 15's initially.
+    The numbers indicate the walls that aren't there.
+  
+  Input:
+    tile - the current tile with the wall flags set
+    r - row 
+    c - column
+  
+  Return: nothing
+*/
 void updateMap(byte tile, int r, int c) {
-  Serial.print("Row: ");
-  Serial.print(r);
-  Serial.print(" Col: ");
-  Serial.print(c);
-  Serial.println();
-  Serial.print("Tile: ");
-  Serial.print(tile);
-  Serial.println();
-  Tmap[r][c] = tile;
+  Tmap[r][c] = tile;  // update the global Tmap
   LocalMap[r][c] = 1; // tell that we have visited it
-//  makeOmapFromTmap();
 }
 
+/*
+  Description: 
+    Helper function to AutoMapping(). It checks each tile to see if there
+    is a wall that is there but shouldn't. This comes from a 15 that is 
+    initially there but then updated when scanned.
+  
+  Input: nothing
+  
+  Return:
+    Boolean - true if all tiles are found/ false otherwise
+*/
 bool checkDone() {
   int row, col;
 
@@ -686,24 +494,24 @@ bool checkDone() {
   // example being one square equals 15 and another is 10 but the 15 shouldn't have a north wall
   for(row = 0; row < 4; row++) {
     for(col = 0; col < 4; col++) {
-      if(Tmap[row][col] == NSWE) {
+      if(Tmap[row][col] == NSWE) {    // only check tile if it is a 15
         if(row + 1 < 4) {
-          if((Tmap[row+1][col] & N) == 0) {
+          if((Tmap[row+1][col] & N) == 0) {   // check if south tile doesn't have a north wall
             return false;
           }
         }
         if(row - 1 >= 0) {
-          if((Tmap[row-1][col] & S) == 0) {
+          if((Tmap[row-1][col] & S) == 0) { // check if north tile doesn't have a south wall
             return false;
           }
         }
         if(col + 1 < 4) {
-          if((Tmap[row][col+1] & W) == 0) {
+          if((Tmap[row][col+1] & W) == 0) { // check if east tile doesn't have a west wall
             return false;
           }
         }
         if(col - 1 >= 0) {
-          if((Tmap[row][col-1] & E) == 0) {
+          if((Tmap[row][col-1] & E) == 0) { // check if west tile doesn't have a east wall
             return false;
           }
         }
@@ -713,22 +521,202 @@ bool checkDone() {
   return true; // no bad walls found
 }
 
+/*
+  Description: 
+    Auto maps any given 4x4 map. It is done based on odometry with no wall following.
+    It goes to every tile it can find and takes a survey of the wall around and puts into the map.
+    Once done it takes it current coordinates and calls makeOmapFromTmap. Then it call the wavefront
+    path planning algorithm to plan directions. Those directions are then used to path follow
+    which uses hallway following.
+  
+  Input: nothing
+  
+  Return: nothing
+*/
+void AutoMapping() {
+  bool done;  // used to see if the map is finished
+  
+  // take a snapshot of tile
+  if(LocalMap[southCounter][eastCounter] == 0){ // haven't visited this square
+    updateMap(tile, southCounter, eastCounter);
+    delay(500);
+  }
+
+  done = checkDone();
+  // if done make the omap, calculate a path, and follow that path
+  if(done) {
+    makeOmapFromTmap();
+    CalcWavefront(southCounter, eastCounter, goalRow, goalCol);
+    printArray();
+    while(1) {  // done so hang here when done
+      pathFollow(directions);
+    }
+  }
+
+  // verify it isn't going to move in a tile it is already in
+  if(eastCounter + 1 < 4) { // each of these are bounds checks
+    if(LocalMap[southCounter][eastCounter+1] != 1) {   // already been to the east tile
+      canMoveEast = true; 
+    } else {
+      canMoveEast = false;
+    }
+  } else {
+    canMoveEast = false;
+  }
+  if(southCounter - 1 >= 0) {
+    if(LocalMap[southCounter-1][eastCounter] != 1) { // already been to the north tile
+      canMoveNorth = true; 
+    } else {
+      canMoveNorth = false;
+    }
+  } else {
+    canMoveNorth = false;
+  }
+  if(southCounter + 1 < 4) {
+    if(LocalMap[southCounter+1][eastCounter] != 1) { // already been to the south tile
+      canMoveSouth = true; 
+    } else {
+      canMoveSouth = false;
+    }
+  } else {
+    canMoveSouth = false;
+  }
+  if(eastCounter - 1 >= 0) {
+    if(LocalMap[southCounter][eastCounter-1] != 1) { // already been to the west tile
+      canMoveWest = true; 
+    } else {
+      canMoveWest = false;
+    }
+  } else {
+    canMoveWest = false;
+  }
+
+  // pick the direction to move. It gives priority to the east then south then west then north
+  // it mimics right wall following but moving tile by tile with odometry
+  // the robot is always assumed to be facing north
+  if(!bitRead(flag,obRight) && canMoveEast) {         // move east
+    spinTile(RIGHT);
+    moveTile(FORWARD);
+    spinTile(LEFT);
+    eastCounter++;
+  } else if(!bitRead(flag,obRear) && canMoveSouth) {  // move south
+    moveTile(BACKWARD);
+    southCounter++;
+  }  else if(!bitRead(flag,obLeft) && canMoveWest) {  // move west
+    spinTile(LEFT);
+    moveTile(FORWARD);
+    spinTile(RIGHT);
+    eastCounter--;
+  } else if(!bitRead(flag,obFront) && canMoveNorth) {  // move north
+    moveTile(FORWARD);
+    southCounter--;
+  } else {  // if it is stuck reverse the order of priority to find a tile that is mapped.
+     if(!bitRead(flag,obLeft)) {    // move west
+      spinTile(LEFT);
+      moveTile(FORWARD);
+      spinTile(RIGHT);
+      eastCounter--;
+    } else if(!bitRead(flag,obRear)) {  // move south
+      moveTile(BACKWARD);
+      southCounter++;
+    }  else if(!bitRead(flag,obRight)) {  // move east
+      spinTile(RIGHT);
+      moveTile(FORWARD);
+      spinTile(LEFT);
+      eastCounter++;
+    } else if(!bitRead(flag,obFront)) {  //  move north
+      moveTile(FORWARD);
+      southCounter--;
+    }
+  }
+}
+
+/*
+  Description: 
+    Takes in controls from the keypad of another laptop to move tile by tile.
+
+    Commands: 
+      8 - move forward a tile
+      2 - move backward a tile
+      4 - move to the left tile
+      6 - move to the right tile
+      5 - take sensor reading to see walls and update map
+      4 - print map wirelessly - issues with this currently...
+      3 - finished so plan path and follow it. The program ends after this.
+      
+  Input: nothing
+  
+  Return: nothing
+*/
+void ManualMapping() {
+  // wait for a command
+  delay(5);
+  radio.startListening();
+  while (radio.available()) {
+    radio.read(&data, sizeof(data));  // command read
+
+    // read the commands and do the appropriate movement. The movement is in the header comment
+    // above this function
+    if(data[0] == 8) {
+      moveTile(FORWARD);
+      southCounter--;
+    } else if(data[0] == 2) {
+      moveTile(BACKWARD);
+      southCounter++;
+    } else if(data[0] == 4) {
+      spinTile(LEFT);
+      moveTile(FORWARD);
+      spinTile(RIGHT);
+      eastCounter--;
+    } else if(data[0] == 6) {
+      spinTile(RIGHT);
+      moveTile(FORWARD);
+      spinTile(LEFT);
+      eastCounter++;
+    } else if(data[0] == 5) {
+      updateMap(tile, southCounter, eastCounter);
+    } else if(data[0] == 1) {
+      makeOmapFromTmap();
+      printArray();
+    } else if(data[0] == 3) {
+      CalcWavefront(southCounter, eastCounter, goalRow, goalCol);
+      printArray();
+      while(1) { 
+        pathFollow(directions);
+      }
+    }
+  }
+}
+
 ///////////////////////////////////////////////////////////
 // LOCALIZATION SECTION
 ///////////////////////////////////////////////////////////
+/*
+  Description: 
+    This functions calculates where it is in a 4x4 map. It takes the current tile
+    and keeps track of the step number to match up each tile with the possible options on 
+    the hardcoded Tmap.
+
+    The function assumes that the robot has moved and isn't retaking a measurement.
+  
+  Input:
+    tile - the current tile to robot just scanned
+  
+  Return: nothing
+*/
 void localize(byte tile){
   int row, col, numOfCorrectTiles;
   int correctRow, correctCol;
-
-  // print the tile that is uses for the one the robot is in
-  Serial.print("Tile: ");
-  Serial.println(tile);
   
   // assume we are looking for next step
   localStep += 1;
+
+  // look through the map to match up the tiles and steps
   for(row = 0; row < 4; row++) {
     for(col = 0; col < 4; col++) {
       if(Tmap[row][col] == tile) {   // compare if the tile is the same
+         // only update the tile with the step number if the step can be map to the tile 
+         // and the tile before is the previous step
          if(row-1 >= 0){
           // North Check
           if((LocalMap[row-1][col] == localStep-1) && ((Tmap[row-1][col] & S) == 0)){
@@ -757,15 +745,6 @@ void localize(byte tile){
     }
   }
 
-  // print the local map for testing purposes -- REMOVE for FINAL CODE
-//  for(row=0; row<4; row++) {
-//    for(col=0; col<4; col++) {
-//      Serial.print(LocalMap[row][col]);
-//      Serial.print(", ");
-//    }
-//    Serial.println();
-//  }
-
   numOfCorrectTiles = 0;
   
   // check if there is only one tile with the correct step
@@ -783,23 +762,23 @@ void localize(byte tile){
   if(numOfCorrectTiles == 1) {
     // found the location!
     // print the array
-    Omap[correctRow*2+1][correctCol*2+1] = 25;
+    Omap[correctRow*2+1][correctCol*2+1] = 25;    // 25 indicates the current location
     printArray();       // array with the positions found
-    Omap[correctRow*2+1][correctCol*2+1] = 0;
+    Omap[correctRow*2+1][correctCol*2+1] = 0;     // reset the map without the current location
 
+    // save the row and tile for the current location
     row = correctRow;
     col = correctCol;
 
+    // update them with the movements made to figure out where we came from
     row += northCounter;
     col += eastCounter;
-
-    Serial.print(row);
-    Serial.println(col);
     
-    Omap[row*2+1][col*2+1] = 33;
+    Omap[row*2+1][col*2+1] = 33;   // 33 indicates the starting tile
     printArray();       // array with the positions found
-    Omap[row*2+1][col*2+1] = 0;
+    Omap[row*2+1][col*2+1] = 0;   // reset the map without the start location
 
+    // calculate the path
     CalcWavefront(correctRow, correctCol, goalRow, goalCol);
 
     foundTile = true;
@@ -807,13 +786,116 @@ void localize(byte tile){
 
 }
 
+/*
+  Description: 
+    Takes in controls from the keypad of another laptop to move tile by tile.
+
+    Commands: 
+      8 - move forward a tile
+      2 - move backward a tile
+      4 - move to the left tile
+      6 - move to the right tile
+      5 - take sensor reading to see walls and call localize with the current tile
+          It prints the array when complete with the path to follow and wavefront map
+      1 - Call the path follow when ready to follow the path that was found. The program ends here
+      
+  Input: nothing
+  
+  Return: nothing
+*/
+void ManualLocalize() {
+  // wait and listen for a command
+  delay(5);
+  radio.startListening();
+  
+  while (radio.available()) {
+    radio.read(&data, sizeof(data));  // read command
+
+    // parse and execute appropriate command
+    if(data[0] == 8) {
+      moveTile(FORWARD);
+      northCounter++;
+    } else if(data[0] == 2) {
+      moveTile(BACKWARD);
+      northCounter--;
+    } else if(data[0] == 4) {
+      spinTile(LEFT);
+      moveTile(FORWARD);
+      spinTile(RIGHT);
+      eastCounter--;
+    } else if(data[0] == 6) {
+      spinTile(RIGHT);
+      moveTile(FORWARD);
+      spinTile(LEFT);
+      eastCounter++;
+    } else if(data[0] == 5) {
+      localize(tile);
+      printArray(); 
+    } else if(data[0] == 1) {
+      while(1) { 
+        pathFollow(directions);
+      }
+    }
+  }
+}
+
+/*
+  Description: 
+    Auto localizes any given 4x4 map that is hardcoded at the start. 
+    It is done based on odometry with no wall following.
+    It takes a snapshot of the walls and checks if it has found the location.
+    Once done it calls path planning and path following to go to the goal
+  
+  Input: nothing
+  
+  Return: nothing
+*/
+void AutoLocalize() {
+  localize(tile);   // take the reading of where we are
+  
+  delay(200);
+
+  // found the tile so call path planning
+  if(foundTile == true) {
+    while(1) { 
+      pathFollow(directions);
+    }
+  }
+
+  // check if it can go forward and hasn't hit a dead end
+  if(!bitRead(flag,obFront) && wentBack == false) {
+    moveTile(FORWARD);
+    northCounter++;
+    wentBack = false;
+    delay(200);
+  } else if(!bitRead(flag,obLeft)) {    // see if it can go left instead
+    spinTile(LEFT);
+    moveTile(FORWARD);
+    spinTile(RIGHT);
+    wentBack = false;
+    eastCounter--;
+    delay(200);
+  } else if(!bitRead(flag,obRight)) {  // see if it can go right instead
+    spinTile(RIGHT);
+    moveTile(FORWARD);
+    spinTile(LEFT);
+    wentBack = false;
+    eastCounter++;
+    delay(200);
+  } else if(!bitRead(flag,obRear)) {    // see if it can go backwards instead
+    moveTile(BACKWARD);
+    wentBack = true;
+    northCounter--;
+    delay(200);
+  }
+}
 
 ///////////////////////////////////////////////////////////
 // PATH PLANNING
 ///////////////////////////////////////////////////////////
 /*
   Description: 
-    This takes the Tmap that is already populated and expands the omap to 9x9.
+    This takes the Tmap that is already populated. The makeOmapFromTmap() needs called before this function
     When the omap is populated and does wavefront propogation on it. This 
     creates a path to the goal from any square on the map. Once that is calculated
     it plans the path and sets the directions[] to E, W, N, S directions.
@@ -869,10 +951,8 @@ void CalcWavefront(int StartRow, int StartCol, int GoalRow, int GoalCol) {
   
   Orow = 0;
   Ocol = 0;
-
-//  printArray(); // print the array to check initial omap values
   
-  // Do the wave...
+  // Do the wave... i.e. wavefront algorithm
   while(notDone) {
     if(Omap[Orow][Ocol] != 0 && Omap[Orow][Ocol] != OBSTACLE) { // check if there is a number
       currentVal = Omap[Orow][Ocol]+1;
@@ -925,13 +1005,15 @@ void CalcWavefront(int StartRow, int StartCol, int GoalRow, int GoalCol) {
     }
   }
 
+  // reset with the starting cordinates
   Ocol = StartCol;
   Orow = StartRow;
 
   Omap[GoalRow][GoalCol] = EMPTY; // clear the goal that was set to 50 for the algorithm
 
   printArray(); // final Omap that has the values of the paths
-  
+
+  // build the directions array to pass to path following
   directions[0] = 'S';
   previousStep = 0;
   // Ride the wave... (Path finding...)
@@ -953,10 +1035,6 @@ void CalcWavefront(int StartRow, int StartCol, int GoalRow, int GoalCol) {
         smallestIndex = i;
       }
     }
-    
-//    Serial.print(Omap[Orow][Ocol]);
-//    Serial.print(", ");
-//    Serial.println(smallestIndex);
 
     // pick the direction that is the smallest
     switch(smallestIndex) {
@@ -964,8 +1042,8 @@ void CalcWavefront(int StartRow, int StartCol, int GoalRow, int GoalCol) {
         // check if the robot needs to turn around to face starting direction
         if(directionIndex == 1 && startingDirection == NORTH) {
           // spin left twice to face south
-          spin2(LEFT);
-          spin2(LEFT);
+          spinTile(LEFT);
+          spinTile(LEFT);
           forward(quarter_rotation);
         }
         if(previousStep == 2) { // just turned right
@@ -1030,37 +1108,40 @@ void CalcWavefront(int StartRow, int StartCol, int GoalRow, int GoalCol) {
     }
     previousStep = smallestIndex;
   }
-  
-  directions[directionIndex] = 'T';
 
-  Serial.print("Total Steps: ");
-  Serial.println(directionIndex);
-  Serial.print(directions[0]);
-  Serial.print(directions[1]);
-  Serial.print(directions[2]);
-  Serial.print(directions[3]);
-  Serial.print(directions[4]);
-  Serial.print(directions[5]);
-  Serial.print(directions[6]);
-  Serial.print(directions[7]);
-  Serial.print(directions[8]);
-  Serial.print(directions[9]);
+  // last step is terminate
+  directions[directionIndex] = 'T';
 }
 
+///////////////////////////////////////////////////////////
+// HELPER FUNCTIONS
+///////////////////////////////////////////////////////////
+/*
+  Description: 
+    The function uses and expects a filled out Tmap set as a global.
+    It makes the 4x4 a 9x9 odeometric map.
+  
+  Input: nothing
+  
+  Return: nothing
+*/
 void makeOmapFromTmap() {
   int Trow, Tcol, Orow, Ocol;
 
+  // clear the array initially
   for (Orow = 0; Orow < 9; Orow++) {
     for(Ocol = 0; Ocol < 9; Ocol++) {
       Omap[Orow][Ocol] = 0;
     }
   }
+  
   // Make the o map based on the t map to add 99's
   for(Trow = 0; Trow < 4; Trow++) {  // rows
     for(Tcol = 0; Tcol < 4; Tcol++) {  // columns
+      // calculations to figure out the tile of the 9x9 from 4x4
       Orow = (Trow * 2) + 1;
       Ocol = (Tcol * 2) + 1;
-      // NORTH
+
       if((Tmap[Trow][Tcol] & B0001) == B0001) { // NORTH
         Omap[Orow-1][Ocol] = OBSTACLE;
         Omap[Orow-1][Ocol+1] = OBSTACLE;
@@ -1088,42 +1169,53 @@ void makeOmapFromTmap() {
   } 
 }
 
-//Debugging
+/*
+  Description: 
+    Helper funtion that prints out the 9x9 odeometric map to the serial monitor
+    and wirelessly. It sends it wirelessly row by row  
+  
+  Input: nothing
+  
+  Return: nothing
+*/
 void printArray() {
   int col, row, sendPos;
+
+  // position of the row that is being sent wirelessly
   sendPos = 0;
-//  Timer1.stop();
+
+  // stop listening to send
   delay(5);
   radio.stopListening(); 
   Serial.println("=============================================");
-  for(row = 0; row < 9; row++){
+  for(row = 0; row < 9; row++){   // loop through rows
     Serial.print("[");
-    for(col = 0; col < 9; col++) {
-      if(Omap[row][col] < 10) {
+    for(col = 0; col < 9; col++) {// loop through columns
+      if(Omap[row][col] < 10) {   // had a zero to make them match 99 if the number is less than 10
         Serial.print("0");
         Serial.print(Omap[row][col]);
       } else {
         Serial.print(Omap[row][col]);
       }
-      sendRow[col] = Omap[row][col];
+      sendRow[col] = Omap[row][col];    // put into the send array also
       Serial.print(", ");
     }
     Serial.println("]"); 
-//    delay(5);
-//    radio.startListening();
-//    if ( radio.available()) {
-      delay(5);
-      radio.stopListening(); 
-      radio.write(sendRow, sizeof(sendRow));
-//    }
+    delay(5);
+    radio.stopListening(); 
+    radio.write(sendRow, sizeof(sendRow));    // send the row wirelessly
   }
   Serial.println("=============================================");
-//  Timer1.start();
 }
 
+///////////////////////////////////////////////////////////
+// BASIC FUNCTIONALITY SECTION
+///////////////////////////////////////////////////////////
+// functions in this sections are functions from previous labs
 /*
   Description: 
     Calls the sensors update function to update error and states based on the errors.
+    
   Input: nothing
   
   Return: nothing
@@ -1325,10 +1417,11 @@ void updateState() {
     Used to move forward a predefined distance in a given direction
   Input:
     dir - direction to move
+          define FORWARD/BACKWARD
   
   Return: nothing
 */
-void forward2(int dir) {
+void moveTile(int dir) {
   long positions[2];                                    // Array of desired stepper positions
   int correction = 1350;
   stepperRight.setCurrentPosition(0);                   //reset right motor to position 0
@@ -1348,10 +1441,11 @@ void forward2(int dir) {
     Used to spin a predefined amount in a given direction
   Input:
     dir - direction to spin
+          Defined LEFT/RIGHT
   
   Return: nothing
 */
-void spin2(int dir) {
+void spinTile(int dir) {
   long positions[2];                                    // Array of desired stepper positions
   int rightCorrection = 480;
   int leftCorrection = 470;
