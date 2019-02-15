@@ -1,10 +1,15 @@
 /*RobotTransceiver.ino
   Authors: Carlotta Berry, Ricky Rung
-  modified: 11/23/16
+  modified: 2/15/19
+  Modified by: Devon Adair and Hunter Lamantia
   This program will set up the laptop to use a nRF24L01 wireless transceiver to
   communicate wirelessly with a mobile robot
   the transmitter is an Arduino Mega connected to the laptop
   the receiver is on an Arduino Mega mounted on the robot
+
+  The modification that were made now allow bidirectional communication.
+  The robot sends the map to the arduino on the laptop row by row for a total of 9 rows (9x9).
+  The arduino on the laptop send commands to the robot to drive it and control behavior.
 
   HARDWARE CONNECTIONS:
 
@@ -45,9 +50,10 @@ const uint64_t pipes[2] = {0xE8E8F0F0E1LL, 0xE8E8F0E07DLL}; //define the radio t
 RF24 radio(CE_PIN, CSN_PIN);          //create radio object
 uint8_t data[1];                      //variable to hold transmit data
 
-int i, j;
-int rowCount = 0;
-bool waitForRow = false;
+int i;                  // index of the row for the map
+int rowCount = 0;       // count how many rows and after 9 print a new line to seperate the maps
+
+uint8_t recieveInfo[9]; // the row buffer used to recieve a row at a time
 
 void setup() {
   Serial.begin(9600);//start serial communication
@@ -55,45 +61,28 @@ void setup() {
   radio.setChannel(team_channel);//set the transmit and receive channels to avoid interference
   radio.openWritingPipe(pipes[0]);//open up writing pipe
   radio.openReadingPipe(1, pipes[1]);//open up reading pipe
-//  radio.startListening();//start listening for data;
 }
 
-uint8_t recieveInfo[9];
-
-// code was referenced from here: https://howtomechatronics.com/tutorials/arduino/arduino-wireless-communication-nrf24l01-tutorial/
+// The code now looks for a input to serial console and writes it to the robot if there is an input
+// otherwise it reads a map that is sent from the bot.
+// the map is sent row by row which come in 9 numbers
 void loop() {
-  //use serial monitor to send 0 and 1 to blink LED on digital pin 13 on robot microcontroller
+  // Write commands to the robot if there is an input
   delay(5);
-//  if(data[0] == 0) {
-//    delay(1000);
-//  }
   radio.stopListening();
-  if (Serial.available() > 0) {
-    data[0] = Serial.parseInt();
+  if (Serial.available() > 0) { // if there is an input write
+    data[0] = Serial.parseInt();  // read the input from the console
     Serial.println(data[0]);
-    radio.write(data, sizeof(data));
+    radio.write(data, sizeof(data));  // push it wirelessly
   }
-//  Serial.print(data[0]);
+
+  // start listening for the map
   delay(5);
   radio.startListening();
-  if(data[0] == 1) {
-    for( i = 0; i < 9; i++) {
-      while(!radio.available());
-      radio.read(&recieveInfo, sizeof(recieveInfo));
-      for (j = 0; j < 9; j++) {
-        if(recieveInfo[i] < 10) {
-           Serial.print(0);
-        }
-        Serial.print(recieveInfo[i]);
-        Serial.print(", ");
-      }
-      Serial.println();
-    }
-    
-  }
-  if (radio.available()) {
+  if (radio.available()) {  // if it recieves a row print and read it
     radio.read(&recieveInfo, sizeof(recieveInfo));
     for(i = 0; i < 9; i++) {
+      // print the array and make it look nice
       if(recieveInfo[i] < 10) {
         Serial.print(0);
       }
